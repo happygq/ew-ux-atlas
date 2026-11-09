@@ -1,0 +1,739 @@
+
+// math.js
+const PI = Math.PI;
+const V = (x=0,y=0,z=0)=>[x,y,z];
+const add = (a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]];
+const sub = (a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+const mul = (a,s)=>[a[0]*s,a[1]*s,a[2]*s];
+const dot = (a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const cross = (a,b)=>[a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+const norm = a=>{const n=Math.hypot(...a)||1;return a.map(v=>v/n)};
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const hash=(s)=>{let h=2166136261;for(const c of String(s)){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0};
+const noise=(seed)=>hash(seed)/4294967295;
+const rounded=(n,p=6)=>Math.round(n*10**p)/10**p;
+const vecNear=(a,b,e=1e-6)=>a.length===b.length&&a.every((v,i)=>Math.abs(v-b[i])<=e);
+
+// mesh.js
+
+/** All meshes use metres, X along the eave, Y up, Z roof-span. No external geometry engine. */
+class Mesh {
+  constructor(id, material, offset=[0,0,0]) {this.id=id;this.material=material;this.offset=offset;this.positions=[];this.normals=[];this.count=0;}
+  tri(a,b,c) {
+    const n=norm(cross(sub(b,a),sub(c,a)));
+    for(const p of [a,b,c]) {this.positions.push(...p);this.normals.push(...n);}
+    this.count++;
+    return this;
+  }
+  quad(a,b,c,d) {this.tri(a,b,c);this.tri(a,c,d);return this;}
+  box(cx,cy,cz,sx,sy,sz) {
+    const x0=cx-sx/2,x1=cx+sx/2,y0=cy-sy/2,y1=cy+sy/2,z0=cz-sz/2,z1=cz+sz/2;
+    const a=[x0,y0,z0],b=[x1,y0,z0],c=[x1,y1,z0],d=[x0,y1,z0],e=[x0,y0,z1],f=[x1,y0,z1],g=[x1,y1,z1],h=[x0,y1,z1];
+    this.quad(a,d,c,b).quad(e,f,g,h).quad(a,e,h,d).quad(b,c,g,f).quad(a,b,f,e).quad(d,h,g,c); return this;
+  }
+  /** Vertices are planar XY polygon. Side walls and caps extruded to +/-depth/2. */
+  extrudeXY(points,depth,centerZ=0) {
+    const z0=centerZ-depth/2,z1=centerZ+depth/2;
+    // Stepped wall profiles are X-monotone, so triangulate continuous front/back
+    // as deterministic vertical strips. No internal box joints / spurious faces.
+    const xs=[...new Set(points.map(p=>p[0]))].sort((a,b)=>a-b);
+    const heightAt=x=>{
+      const ys=[];
+      for(let i=0;i<points.length;i++){
+        const a=points[i],b=points[(i+1)%points.length];
+        if(Math.abs(a[0]-b[0])<1e-10)continue;
+        if(x>=Math.min(a[0],b[0])&&x<=Math.max(a[0],b[0]))
+          ys.push(a[1]+(x-a[0])/(b[0]-a[0])*(b[1]-a[1]));
+      }
+      if(ys.length<2)throw new Error('Non-x-monotone polygon');
+      return [Math.min(...ys),Math.max(...ys)];
+    };
+    for(let i=0;i<xs.length-1;i++){
+      const x0=xs[i],x1=xs[i+1],mid=(x0+x1)/2, [lo,hi]=heightAt(mid);
+      this.quad([x0,lo,z1],[x1,lo,z1],[x1,hi,z1],[x0,hi,z1]);
+      this.quad([x0,hi,z0],[x1,hi,z0],[x1,lo,z0],[x0,lo,z0]);
+    }
+    const area=points.reduce((s,p,i)=>{const q=points[(i+1)%points.length];return s+p[0]*q[1]-q[0]*p[1]},0);
+    const ccw=area>0;
+    for(let i=0;i<points.length;i++){
+      const a=points[i],b=points[(i+1)%points.length];
+      const v0=[a[0],a[1],z0],v1=[b[0],b[1],z0],v2=[b[0],b[1],z1],v3=[a[0],a[1],z1];
+      if(ccw)this.quad(v0,v1,v2,v3);else this.quad(v3,v2,v1,v0);
+    }
+    return this;
+  }
+  tube(path,rad=0.1,sides=10){
+    // parallel transport approximation: choose a fixed reference axis per segment
+    for(let i=0;i<path.length-1;i++){
+      const A=path[i],B=path[i+1],dir=norm(sub(B,A));
+      const ref=Math.abs(dir[1])<0.94?[0,1,0]:[1,0,0]; const u=norm(cross(dir,ref)),v=norm(cross(dir,u));
+      for(let k=0;k<sides;k++){
+        const q=k/sides*2*PI,r=(k+1)/sides*2*PI;
+        const off=t=>add(mul(u,Math.cos(t)*rad),mul(v,Math.sin(t)*rad));
+        this.quad(add(A,off(q)),add(A,off(r)),add(B,off(r)),add(B,off(q)));
+      }
+    }
+    return this;
+  }
+  beam(a,b,width,height){ // axis along a->b, rectangular cross section
+    const axis=norm(sub(b,a));let u=norm(cross(axis,Math.abs(axis[1])<0.95?[0,1,0]:[1,0,0]));let v=norm(cross(axis,u));
+    const pts=(p)=>[add(add(p,mul(u,width/2)),mul(v,height/2)),add(add(p,mul(u,-width/2)),mul(v,height/2)),add(add(p,mul(u,-width/2)),mul(v,-height/2)),add(add(p,mul(u,width/2)),mul(v,-height/2))];
+    const aa=pts(a),bb=pts(b);
+    for(let i=0;i<4;i++)this.quad(aa[i],aa[(i+1)%4],bb[(i+1)%4],bb[i]);
+    this.quad(aa[3],aa[2],aa[1],aa[0]).quad(bb[0],bb[1],bb[2],bb[3]);return this;
+  }
+  grid(fn,nu,nv){
+    for(let i=0;i<nu;i++)for(let j=0;j<nv;j++){
+      const a=fn(i/nu,j/nv),b=fn((i+1)/nu,j/nv),c=fn((i+1)/nu,(j+1)/nv),d=fn(i/nu,(j+1)/nv);
+      this.quad(a,b,c,d);
+    }
+    return this;
+  }
+  get vertices(){return this.positions.length/3}
+  bounds(){const lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];for(let i=0;i<this.positions.length;i+=3){for(let k=0;k<3;k++){lo[k]=Math.min(lo[k],this.positions[i+k]);hi[k]=Math.max(hi[k],this.positions[i+k]);}}return {min:lo,max:hi};}
+  serialize(){return {id:this.id,material:this.material,offset:this.offset,positions:this.positions,normals:this.normals,triangles:this.count};}
+}
+
+class PartSet {
+ constructor(id){this.id=id;this.parts=[];this._n=0;}
+ part(material,name,offset=[0,0,0]) {let m=new Mesh(`${this.id}/${name}/${this._n++}`,material,offset);this.parts.push(m);return m;}
+ metrics(){return {meshes:this.parts.length,triangles:this.parts.reduce((n,p)=>n+p.count,0),vertices:this.parts.reduce((n,p)=>n+p.vertices,0)};}
+ bounds(){const lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];for(const m of this.parts){const b=m.bounds();if(!Number.isFinite(b.min[0]))continue;for(let k=0;k<3;k++){lo[k]=Math.min(lo[k],b.min[k]);hi[k]=Math.max(hi[k],b.max[k]);}}return {min:lo,max:hi};}
+}
+
+/** Build a full-rounded eave/cap curved profile swept along X with a slightly upswept end. */
+function tileCap(mesh,x0,x1,y,zwidth,{rise=.11,overhang=.04,ends=0}={}){
+ const sections=12,steps=20;
+ const sweep=(x,z)=>{
+   const zz=z/zwidth;const edge=Math.pow(Math.abs(zz),1.5);
+   const endDist=Math.min((x-x0)/(x1-x0),(x1-x)/(x1-x0));
+   const tip=ends*Math.max(0,1-endDist*8)**2;
+   return y+rise*(1-zz*zz)-.11*edge+tip;
+ };
+ // roof-shaped face
+ mesh.grid((u,v)=>{const x=lerp(x0,x1,u),z=lerp(-zwidth-overhang,zwidth+overhang,v);return [x,sweep(x,z),z]},steps,sections);
+ for(const sg of [-1,1]){
+   const z=sg*(zwidth+overhang);
+   mesh.grid((u,v)=>{const x=lerp(x0,x1,u);return [x,lerp(sweep(x,z)-.055,sweep(x,z),v),z]},steps,2);
+ }
+ return mesh;
+}
+
+// contracts.js
+
+const CONTRACT_VERSION='ew/ux/module-boundary/v0.1';
+const INTERFACE_VERSION='ew/ux/module-interface/v0.1';
+const DEFAULTS=Object.freeze({
+  wall:{width:4.0,depth:.42,baseY:.28,steps:4,stepRise:.55,wallHeight:2.25,capWidth:.35,finial:.28},
+  roof:{length:4.4,halfSpan:1.55,eaveHeight:1.68,rise:1.02,tilePitch:.32,tileRow:.37,tileArch:.082,xPhase:0},
+  eave:{length:4.2,projection:1.06,bracketCount:5,rafterCount:13,beamDepth:.20}
+});
+const MODULES=Object.freeze([
+  {id:'MH-01',type:'wall',name:'典型四级马头墙',en:'Stepped gable / signature',params:{}},
+  {id:'MH-02',type:'wall',name:'高耸五级马头墙',en:'Rising stepped silhouette',params:{steps:5,stepRise:.52,wallHeight:2.53}},
+  {id:'MH-03',type:'wall',name:'鹊尾卷翘收头',en:'Upturned quetail finials',params:{steps:4,finial:.58}},
+  {id:'MH-04',type:'wall',name:'矮式宽墙与叠压顶',en:'Low broad parapet',params:{width:4.7,stepRise:.38,wallHeight:1.95}},
+  {id:'RF-01',type:'roof',name:'曲面灰瓦双坡屋顶',en:'Double pitch · barrel tiles',params:{}},
+  {id:'RF-02',type:'roof',name:'陡坡细瓦屋顶',en:'Steeper and tighter tile rhythm',params:{rise:1.38,tilePitch:.285}},
+  {id:'RF-03',type:'roof',name:'深出檐低坡瓦面',en:'Broad profile · deep overhang',params:{halfSpan:1.83,rise:.78,length:4.85}},
+  {id:'RF-04',type:'roof',name:'屋脊及滴水瓦特写',en:'Ridge caps & drip tiles',params:{length:3.6,tilePitch:.26,tileArch:.115}},
+  {id:'EV-01',type:'eave',name:'五组木斗拱檐口',en:'Layered timber eave',params:{}},
+  {id:'EV-02',type:'eave',name:'密椽小斗拱',en:'Fine rafters & compact brackets',params:{rafterCount:17,bracketCount:7}},
+  {id:'EV-03',type:'eave',name:'深挑叠梁重檐',en:'Deep cantilever & stratified timber',params:{projection:1.38,beamDepth:.26}},
+  {id:'EV-04',type:'eave',name:'短跨精刻端檐',en:'Carved timber terminus',params:{length:3.2,projection:.95,bracketCount:4}}
+]);
+const BOUNDS={
+ wall:{width:[2.8,5],depth:[.25,.7],baseY:[.12,.6],steps:[3,5],stepRise:[.28,.85],wallHeight:[1.7,2.85],capWidth:[.25,.48],finial:[0,.7]},
+ roof:{length:[1.4,5],halfSpan:[1.1,2],eaveHeight:[1.3,2.2],rise:[.55,1.55],tilePitch:[.24,.42],tileRow:[.25,.44],tileArch:[.04,.15],xPhase:[-10,10]},
+ eave:{length:[2.8,5],projection:[.7,1.55],bracketCount:[3,8],rafterCount:[8,24],beamDepth:[.14,.32]}
+};
+function resolve(def,override={}){
+ const type=def.type,params={...DEFAULTS[type],...def.params,...override};
+ for(const [key,v] of Object.entries(params)){
+  const r=BOUNDS[type][key]; if(!r)throw new Error(`Unexpected ${type} parameter: ${key}`);
+  if(!Number.isFinite(v)||v<r[0]||v>r[1])throw new RangeError(`${type}.${key}=${v} outside [${r}]`);
+  if(['steps','bracketCount','rafterCount'].includes(key)&&!Number.isInteger(v))throw new TypeError(`${key} must be integer`);
+ }
+ return {id:def.id,type,params,interface:INTERFACE_VERSION,contract:CONTRACT_VERSION,source:'deterministic-procedural',replacementKey:def.id};
+}
+const roofSlope=(p,z)=>z===0?0:Math.sign(z)*(-p.rise/p.halfSpan+(.052*8/p.halfSpan)*Math.pow(Math.abs(z)/p.halfSpan,7));
+const roofY=(p,z)=>p.eaveHeight+p.rise*(1-Math.min(1,Math.abs(z)/p.halfSpan))+.052*Math.pow(Math.abs(z)/p.halfSpan,8);
+/** X-aligned boundary; samples refer to the exposed roof substrate and repeating tile phase.
+ * Phase is measured in *world* X, never restarted at a tile module boundary. */
+function roofBoundary(p,side,xOrigin=0){
+ const x=xOrigin+(side==='left'?-p.length/2:p.length/2),zValues=Array.from({length:33},(_,i)=>-p.halfSpan+i*p.halfSpan/16);
+ return {version:CONTRACT_VERSION,side,planeX:rounded(x,8),
+   profile:zValues.map(z=>[rounded(z,7),rounded(roofY(p,z),7)]),
+   normals:zValues.map(z=>norm([0,1,-roofSlope(p,z)]).map(q=>rounded(q,7))),
+   crossTangent:zValues.map(z=>norm([0,roofSlope(p,z),1]).map(q=>rounded(q,7))),
+   tilePhase:rounded(((x-p.xPhase)/p.tilePitch%1+1)%1,7),
+   tilePitch:p.tilePitch, tileRow:p.tileRow,tileArch:p.tileArch,
+   tangent:[1,0,0],normalRule:'roofY derivative; same at adjacent X boundaries',
+   seamPolicy:'abutting-no-overlap; substrate coincident; tile geometry clipped to seam plane',
+   units:'m'};
+}
+function checkRoofSeam(a,b,positionTolerance=1e-5){
+ const issues=[];if(a.version!==b.version)issues.push('contract_version');
+ if(Math.abs(a.planeX-b.planeX)>positionTolerance)issues.push('position');
+ if(a.profile.length!==b.profile.length||a.profile.some((p,i)=>!b.profile[i]||!vecNear(p,b.profile[i],positionTolerance)))issues.push('height_profile');
+ for(const key of ['normals','crossTangent'])if(a[key]?.length!==b[key]?.length||a[key].some((p,i)=>!b[key][i]||!vecNear(p,b[key][i],positionTolerance)))issues.push(key);
+ for(const key of ['tilePitch','tileRow','tileArch'])if(Math.abs(a[key]-b[key])>positionTolerance)issues.push(key);
+ const da=Math.abs(a.tilePhase-b.tilePhase);if(Math.min(da,1-da)>positionTolerance)issues.push('tile_phase');
+ if(a.seamPolicy!==b.seamPolicy)issues.push('policy');
+ return {ok:issues.length===0,issues,maxProfileDelta:Math.max(0,...a.profile.map((p,i)=>Math.abs(p[1]-(b.profile[i]?.[1]??Infinity))))};
+}
+function stableModuleId({id,type,params}){
+ const sorted=Object.fromEntries(Object.keys(params).sort().map(k=>[k,params[k]]));
+ return `${INTERFACE_VERSION}:${id}:${type}:${JSON.stringify(sorted)}`;
+}
+/** Hook for a future artist-made mesh. The override has to advertise the same contract, anchors and ID. */
+function applyReplacement(generated,custom){
+ if(!custom)return generated;
+ const a=generated.metadata,b=custom.metadata;
+ if(!a||!b||a.id!==b.id||a.contract!==b.contract||a.stableId!==b.stableId||JSON.stringify(a.anchors)!==JSON.stringify(b.anchors))
+  throw new Error('Artist replacement violates stable module identity / boundary anchors');
+ if(!Array.isArray(custom.parts)||custom.parts.length===0)throw new Error('Replacement has no geometry');
+ return custom;
+}
+
+// modules.js
+
+
+
+/** World-space layout for parallel architectural details. No local tile/rafter reset at a join. */
+function worldStations(x0,x1,worldX,pitch,phase=0){
+  const lo=x0+worldX,hi=x1+worldX,eps=1e-7;
+  const out=[];
+  for(let k=Math.ceil((lo-phase-eps)/pitch);k<=Math.floor((hi-phase+eps)/pitch);k++){
+    const x=k*pitch+phase-worldX;
+    if(x>=x0-eps&&x<=x1+eps)out.push({local:x,global:k*pitch+phase,index:k});
+  }
+  return out;
+}
+const M={plaster:'plaster',plasterShade:'plasterShade',stone:'stone',slate:'slate',slateEdge:'slateEdge',slateLight:'slateLight',slateDark:'slateDark',wood:'wood',woodDark:'woodDark',woodLight:'woodLight',cut:'cut',brass:'brass'};
+
+/** Deterministic roof tile strip, cut to [x0,x1] exactly. Tile columns follow global world X. */
+function tiledPitch(out,p,{x0=-p.length/2,x1=p.length/2,side=1,upper=.0,lower=p.halfSpan,xOrigin=0,small=false}={}){
+  const step=p.tilePitch,overlap=.046;
+  const tiles=out.part(M.slate,'barrel-tiles', [0,.018,0]);
+  const tileLip=out.part(M.slateEdge,'tile-lips');
+  const gap=out.part(M.slateDark,'underlap-gaps');
+  const nCol=Math.ceil((x1-x0)/step)+4;
+  for(let k=-2;k<nCol;k++){
+    const column=Math.floor((x0+xOrigin-p.xPhase)/step)+k;
+    const center=column*step+p.xPhase-xOrigin;
+    const lo=Math.max(center-step*.47,x0),hi=Math.min(center+step*.47,x1);
+    if(hi-lo<.005)continue;
+    const capHalf=step*.47;
+    const nRow=Math.ceil((lower-upper)/p.tileRow);
+    for(let r=0;r<nRow;r++){
+      const r0=upper+r*p.tileRow-overlap*.55,r1=Math.min(lower,upper+(r+1)*p.tileRow+overlap);
+      if(r1-r0<.008)continue;
+      const shade=noise(`tile:${p.tilePitch}:${column}:${r}:${side}`);
+      const lift=.012*shade+(r===nRow-1?.008:0);
+      const f=(u,v)=>{
+        const x=lerp(lo,hi,u),z=side*lerp(r0,r1,v),local=(x-center)/capHalf;
+        const arch=p.tileArch*Math.sqrt(Math.max(0,1-local*local));
+        return [x,roofY(p,z)+.067+arch+lift,z];
+      };
+      tiles.grid(f,Math.max(3,Math.round((hi-lo)/step*8)),3);
+      // Shaded lip at the downhill (visible) end, curved like a real barrel section
+      tileLip.grid((u,v)=>{
+        const x=lerp(lo,hi,u), z=side*lerp(r1-.021,r1,v),local=(x-center)/capHalf;
+        return [x,roofY(p,z)+.063+p.tileArch*Math.sqrt(Math.max(0,1-local*local))+lift-(v*.015),z];
+      },7,1);
+      if(r>0&&r%2===0) gap.grid((u,v)=>{
+        const x=lerp(lo,hi,u),z=side*lerp(r0,r0+.022,v),q=(x-center)/capHalf;
+        return [x,roofY(p,z)+.062+p.tileArch*Math.sqrt(Math.max(0,1-q*q))+lift-.018,z];
+      },4,1);
+    }
+  }
+  return {tiles,tileLip};
+}
+function addRidge(out,p,x0=-p.length/2,x1=p.length/2,joins={},worldX=0){
+ const y=roofY(p,0)+.18;
+ const r=out.part(M.slateLight,'ridge-crown');r.tube([[x0+(joins.left?0:-.05),y,0],[x1+(joins.right?0:.05),y,0]],.142,16);
+ const cap=out.part(M.slateEdge,'ridge-axis-bands');
+ for(const {local:x} of worldStations(x0+.10,x1-.10,worldX,.32,.16)){
+  // arched ridge straps registered to the same world-X phase
+  cap.tube([[x,y-.09,-.12],[x,y+.08,-.13],[x,y+.16,0],[x,y+.08,.13],[x,y-.09,.12]],.025,7);
+ }
+ for(const [i,x] of [x0,x1].entries()){
+  if(i===0&&joins.left||i===1&&joins.right)continue;
+  const end=out.part(M.slateDark,'ridge-scroll');end.tube([[x,y,.0],[x+(i===0?-.14:.14),y+.055,0],[x+(i===0?-.16:.16),y+.14,0]],.087,12);
+  const rosette=out.part(M.slateLight,'ridge-rosette');
+  for(let q=0;q<12;q++){
+   const a=q/12*PI*2,b=(q+1)/12*PI*2;
+   rosette.tri([x,y,0],[x,y+.092*Math.cos(a),.092*Math.sin(a)],[x,y+.092*Math.cos(b),.092*Math.sin(b)]);
+  }
+ }
+}
+function addRoofWood(out,p,{x0=-p.length/2,x1=p.length/2,worldX=0}={}){
+ const beams=out.part(M.wood,'rafters');
+ const dark=out.part(M.woodDark,'fascia');
+ const light=out.part(M.woodLight,'carved-stops');
+ for(const side of [-1,1]){
+   const zEnd=side*(p.halfSpan+.09),yEnd=roofY(p,side*p.halfSpan)-.14;
+   dark.beam([x0-.08,yEnd-.09,zEnd],[x1+.08,yEnd-.09,zEnd],.13,.22);
+   for(const {local:x} of worldStations(x0+.055,x1-.055,worldX,.31,.06)){
+     beams.beam([x,roofY(p,side*.2)-.22,side*.2],[x,yEnd-.12,side*(p.halfSpan+.14)],.105,.125);
+     light.box(x,yEnd-.16,side*(p.halfSpan+.17),.12,.12,.15);
+   }
+ }
+ const roofCore=out.part(M.cut,'under-roof-lining');
+ for(const side of [-1,1]){
+  roofCore.grid((u,v)=>{
+   const x=lerp(x0,x1,u),z=side*lerp(.02,p.halfSpan,v);
+   return [x,roofY(p,z)-.12,z];
+  },12,8);
+ }
+}
+function buildRoof(meta,context={}){
+ const worldX=context.worldX??0,joins=context.joins??{};
+ const p=meta.params,out=new PartSet(meta.id);
+ const core=out.part(M.slateDark,'continuous-substrate');
+ // continuous sloped substrate, unlike modular box roofs
+ for(const side of [-1,1])core.grid((u,v)=>{const x=lerp(-p.length/2,p.length/2,u),z=side*lerp(0,p.halfSpan,v);return [x,roofY(p,z)+.01,z];},14,10);
+ for(const side of [-1,1])tiledPitch(out,p,{side,x0:-p.length/2,x1:p.length/2,xOrigin:worldX});
+ const edging=out.part(M.slateEdge,'verge-rolls');
+ for(const [idx,x] of [-p.length/2,p.length/2].entries())for(const side of [-1,1]){
+  if(idx===0&&joins.left||idx===1&&joins.right)continue;
+  const path=[];for(let k=0;k<=24;k++){const z=side*p.halfSpan*k/24;path.push([x,roofY(p,z)+.095,z]);}
+  edging.tube(path,.065,8);
+ }
+ // Eave-facing tip pieces; clear outline at close range
+ const drip=out.part(M.slateLight,'drip-caps');
+ for(const side of [-1,1])for(const {local:x} of worldStations(-p.length/2+.05,p.length/2-.05,worldX,p.tilePitch,.14)){
+   drip.tube([[x,roofY(p,side*p.halfSpan)+.09,side*p.halfSpan],[x,roofY(p,side*p.halfSpan)-.012,side*(p.halfSpan+.12)]],.043,9);
+ }
+ addRoofWood(out,p,{worldX});
+ addRidge(out,p,-p.length/2,p.length/2,joins,worldX);
+ return {parts:out.parts,metrics:out.metrics(),bounds:out.bounds(),metadata:{...meta,anchors:{left:roofBoundary(p,'left',worldX),right:roofBoundary(p,'right',worldX)},stableId:stableModuleId(meta)}};
+}
+
+function wallProfile(p){
+ // Each station owns the *following* horizontal wall plateau. Earlier code
+ // accidentally used the next station's height for the wall mesh, while the
+ // slate cap used the current station's height: caps visibly floated above
+ // their supports. Generate both the extrusion and cap seats from one list.
+ const L=-p.width/2,R=p.width/2,bottom=p.baseY,n=p.steps;
+ const unit=p.width/(n+1);
+ const rising=Array.from({length:n},(_,i)=>({x:L+i*unit,y:p.wallHeight+i*p.stepRise}));
+ const descending={x:L+n*unit,y:p.wallHeight+(n-2)*p.stepRise*.93};
+ const stops=[...rising,descending,{x:R,y:descending.y}];
+ const plateaus=stops.slice(0,-1).map((s,i)=>({x0:s.x,x1:stops[i+1].x,y:s.y}));
+ // Clockwise boundary: base L->R, roofline R->L with exact vertical risers.
+ const pts=[[L,bottom],[R,bottom],[R,plateaus.at(-1).y]];
+ for(let i=plateaus.length-1;i>=0;i--){
+  const q=plateaus[i];pts.push([q.x0,q.y]);
+  if(i>0)pts.push([q.x0,plateaus[i-1].y]);
+ }
+ return {polygon:pts,stops,plateaus};
+}
+function buildWall(meta){
+ const p=meta.params,out=new PartSet(meta.id),profile=wallProfile(p);
+ const body=out.part(M.plaster,'wall-body');body.extrudeXY(profile.polygon,p.depth,0);
+ // soft raised strips cast gentle shadow over the wall near base and sides
+ const base=out.part(M.stone,'stone-socle');
+ base.box(0,p.baseY+.08,0,p.width+.10,.19,p.depth+.06);
+ const line=out.part(M.plasterShade,'plaster-trim');
+ line.box(0,p.baseY+.27,p.depth/2+.012,p.width-.11,.042,.025);
+ // stepped pilasters and plaster archivolts give the silhouette physical thickness.
+ // They sit in front of the continuous wall skin, not as disconnected boxes.
+ const piers=out.part(M.plaster,'raised-step-piers');
+ const shadowPiers=out.part(M.plasterShade,'step-corner-reveals');
+ for(let i=1;i<profile.stops.length-1;i++){
+   const s=profile.stops[i],height=s.y-p.baseY;
+   if(height<.4)continue;
+   piers.box(s.x+.018,p.baseY+height/2,p.depth/2+.052,.155,height+.025,.11);
+   shadowPiers.box(s.x+.111,p.baseY+height/2,p.depth/2+.055,.032,height+.028,.08);
+ }
+ const courses=out.part(M.plasterShade,'raised-cornice-shadows');
+ profile.stops.forEach((s,i)=>{
+   const x1=profile.stops[i+1]?.x??p.width/2;
+   if(x1-s.x>.07)courses.box((s.x+x1)/2,s.y-.155,p.depth/2+.038,x1-s.x,.063,.08);
+ });
+ // For each horizontal stop add compound tiles: stone undercourse, curved double-roll roof, finial
+ profile.stops.forEach((s,i)=>{
+  const x0=s.x, x1=profile.stops[i+1]?.x??p.width/2;
+  if(x1-x0<.06)return;
+  // Cap segments meet exactly at the staircase stations. Only the two external
+  // ends may overhang; overlapping end-rosettes were a visible false seam.
+  const first=i===0,last=i===profile.stops.length-1;
+  const capL=x0-(first?.07:0),capR=x1+(last?.07:0);
+  const y=s.y;
+  const stone=out.part(M.stone,'cap-stone');stone.box((capL+capR)/2,y+.018,0,capR-capL,.12,p.capWidth*2+.13);
+  const dark=out.part(M.slateDark,'cap-shaded-underlip');dark.box((capL+capR)/2,y+.105,0,capR-capL,.065,p.capWidth*2+.22);
+  const tile=out.part(M.slate,'curved-cap');tileCap(tile,capL,capR,y+.18,p.capWidth,{rise:.12,ends:last?p.finial*.25:0});
+  const ridge=out.part(M.slateLight,'cap-ridge');ridge.tube([[capL,y+.265,0],[capR,y+.265,0]],.086,12);
+  for(const x of [first?capL:null,last?capR:null].filter(v=>v!==null)){
+   const plug=out.part(M.slateEdge,'cap-end-rosette');
+   for(let j=0;j<10;j++){
+    const a=j/10*PI*2,b=(j+1)/10*PI*2;
+    plug.tri([x,y+.266,0],[x,y+.266+.065*Math.cos(a),.065*Math.sin(a)],[x,y+.266+.065*Math.cos(b),.065*Math.sin(b)]);
+   }
+  }
+  if(i===profile.stops.length-2||i===profile.stops.length-3){
+    const fin=out.part(M.slateDark,'flying-finial');const x=x1+.06,f=p.finial;
+    fin.tube([[x-.10,y+.20,0],[x+.02,y+.26,0],[x+.11,y+.30+f*.3,0],[x+.15,y+.32+f,0]],.075,12);
+  }
+ });
+ // A few intentionally shaped stone reveals at an end, not a flat texture
+ const stone=out.part(M.stone,'exposed-masonry');
+ const darkStone=out.part(M.slateEdge,'masonry-joints');
+ for(let row=0;row<8;row++){
+  for(let col=0;col<2;col++){
+   const x=p.width/2-.18-col*.23+(row%2)*.06;
+   const y=p.baseY+.19+row*.23;
+   if(y>p.wallHeight-0.13)continue;
+   stone.box(x,y,p.depth/2+.019,.21,.20,.043);
+   if((row+col)%3===0)darkStone.box(x,y+.07,p.depth/2+.049,.18,.024,.018);
+  }
+ }
+ // cut in the white wall: narrow vertical cove at side face
+ const reveal=out.part(M.plasterShade,'endwall-corner-reveal');
+ reveal.box(-p.width/2+.075,p.baseY+.37,p.depth/2+.02,.09,.55,.045);
+ return {parts:out.parts,metrics:out.metrics(),bounds:out.bounds(),metadata:{...meta,anchors:{wallSeat:{x:0,y:p.baseY,z:0,depth:p.depth},left:{x:-p.width/2,y:p.baseY,z:0},right:{x:p.width/2,y:p.baseY,z:0},capAxisZ:0,capSpans:profile.stops.map((s,i)=>({start:s.x,end:profile.stops[i+1]?.x??p.width/2,level:s.y}))},profile:profile.stops,wallRim:profile.plateaus,stableId:stableModuleId(meta)}};
+}
+function buildEave(meta,context={}){
+ const p=meta.params,out=new PartSet(meta.id),worldX=context.worldX??0;
+ const refLength=context.referenceLength??p.length,joins=context.joins??{};
+ const rafterPitch=refLength/(p.rafterCount-1),bracketPitch=refLength/(p.bracketCount-1);
+ const start=-p.length/2,end=p.length/2,front=p.projection;
+ const wall=out.part(M.plaster,'wall-slice');wall.box(0,.82,-.43,p.length,1.62,.32);
+ const socle=out.part(M.stone,'socle');socle.box(0,.17,-.43,p.length,.32,.40);
+ // roof section: sloping back toward front, with curvature in tile shafts
+ const roofParams={length:p.length,halfSpan:1.08,eaveHeight:2.14,rise:.66,tilePitch:.32,tileRow:.31,tileArch:.092,xPhase:0};
+ // A self-standing eave roof with front fascia at z=projection
+ const ro=out.part(M.slateDark,'eave-arch-support');
+ ro.grid((u,v)=>{const x=lerp(start-(joins.left?0:.11),end+(joins.right?0:.11),u),z=lerp(-.62,front+.08,v);return [x,2.86-.64*((z+.62)/(front+.70))+.055*Math.pow((z+.62)/(front+.7),5),z];},16,12);
+ const tile=out.part(M.slate,'overlapping-eave-tiles');
+ const lips=out.part(M.slateEdge,'overlapping-tile-lips');
+ const nR=Math.max(4,Math.round((front+.62)/.31)), tilePitch=.31;
+ for(const station of worldStations(start-tilePitch,end+tilePitch,worldX,tilePitch,0))for(let r=0;r<nR;r++){
+  const x=station.local,lo=Math.max(start,x-tilePitch*.5),hi=Math.min(end,x+tilePitch*.5);
+  if(hi-lo<.005)continue;
+  const z0=-.62+r*(front+.7)/nR,z1=z0+(front+.7)/nR+.028;
+  const shade=noise(`eave:${station.index}:${r}`);
+  const f=(u,v,drop=0)=>{const xx=lerp(lo,hi,u),z=lerp(z0,z1,v),q=(xx-x)/(tilePitch*.5),arch=.086*Math.sqrt(Math.max(0,1-q*q));
+   const t=(z+.62)/(front+.70);return [xx,2.86-.64*t+.055*t**5+.055+arch+shade*.01-drop,z];};
+  tile.grid((u,v)=>f(u,v),7,3);lips.grid((u,v)=>f(u,lerp(.92,1,v),v*.018),7,1);
+ }
+ const wood=out.part(M.wood,'rafters-and-cantilevers');
+ const light=out.part(M.woodLight,'mortise-stops');
+ const dark=out.part(M.woodDark,'timber-mouldings');
+ // multiple layered horizontal fascia profiles
+ const yFace=2.23;
+ for(const [q,z,sy] of [[0,front+.16,.17],[1,front+.04,.12],[2,front-.10,.12],[3,front-.28,.17]]){
+  const w=q===0?M.wood:M.woodDark;
+  const over=(.21-q*.09)/2,x0=start-(joins.left?0:over),x1=end+(joins.right?0:over);
+  out.part(w,`multi-tier-fascia-${q}`).box((x0+x1)/2,yFace-.10-q*.125,z,x1-x0,sy,.12);
+ }
+ for(const {local:x} of worldStations(start+.08,end-.08,worldX,rafterPitch,0)){
+  wood.beam([x,2.62,-.49],[x,2.13,front+.18],.10,.12);
+  light.box(x,2.145,front+.23,.125,.115,.15);
+ }
+ // bracket groups at support points, profiled descending dougong stacks not a single box
+ for(const {local:x,index:i} of worldStations(start+.3,end-.3,worldX,bracketPitch,0)){
+  const crown=out.part(M.woodLight,`carved-bracket-${i}`);
+  const bracket=out.part(M.woodDark,`dovetail-stack-${i}`);
+  const beam=out.part(M.wood,`strut-${i}`);
+  bracket.box(x,1.63,-.01,.44,.23,.39);
+  bracket.box(x,1.81,.19,.57,.22,.45);
+  beam.beam([x,1.64,-.28],[x,2.22,front-.12],.155,.17);
+  crown.box(x,1.91,.45,.49,.17,.40);
+  crown.box(x,2.04,.71,.37,.13,.39);
+  // round pin and stepped corbel moulding
+  crown.tube([[x-.17,1.99,.81],[x,2.08,.84],[x+.17,1.99,.81]],.043,8);
+ }
+ const beam=out.part(M.woodDark,'longitudinal-wall-beam');
+ {const x0=start-(joins.left?0:.045),x1=end+(joins.right?0:.045);beam.box((x0+x1)/2,1.58,-.29,x1-x0,.20,.31);}
+ const endCap=out.part(M.slateLight,'slate-edge-rounded-tip');
+ endCap.tube([[start-(joins.left?0:.1),2.30,front+.14],[end+(joins.right?0:.1),2.30,front+.14]],.077,12);
+ return {parts:out.parts,metrics:out.metrics(),bounds:out.bounds(),metadata:{...meta,anchors:{bearingY:1.58,startX:start,endX:end,frontZ:front,wallPlaneZ:-.43,axisZ:0,worldX,rafterPitch,bracketPitch,tilePitch:.31,joins:{left:!!joins.left,right:!!joins.right}},stableId:stableModuleId(meta)}};
+}
+
+function buildModule(def,overrides={},context={}){
+ const meta=resolve(def,overrides);
+ switch(meta.type){case 'wall':return buildWall(meta);case 'roof':return buildRoof(meta,context);case 'eave':return buildEave(meta,context);default:throw new Error(`Unknown module ${meta.type}`);}
+}
+/** Test how a roof module boundary can be read without introducing new topology. */
+function roofSplitSpec(def,splitRatio=.5){
+ const p=resolve(def).params;const a={...p,length:p.length*splitRatio},b={...p,length:p.length*(1-splitRatio)};
+ const offsetA=-p.length/2+a.length/2,offsetB=p.length/2-b.length/2;
+ return [{...a,xOrigin:offsetA},{...b,xOrigin:offsetB}];
+}
+
+// assembly.js
+
+
+const ASSEMBLY_CONTRACT='ew/ux/parallel-assembly/v0.2';
+/** A pure, deterministic two-module visual seam fixture; never writes topology. */
+function parallelFixture(def){
+  const p=resolve(def).params;
+  if(def.type==='wall')throw new Error('The stepped wall has no certified end-to-end upper-profile join; use cap-axis contract only');
+  if(def.type==='roof'){
+    const half=p.length/2,leftX=-p.length/4,rightX=p.length/4;
+    const left=buildModule(def,{length:half},{worldX:leftX,joins:{right:true}});
+    const right=buildModule(def,{length:half},{worldX:rightX,joins:{left:true}});
+    const seam=checkRoofSeam(left.metadata.anchors.right,right.metadata.anchors.left);
+    const items=[{module:left,pos:[leftX,0,0],plinth:false},{module:right,pos:[rightX,0,0],plinth:false}];
+    return {family:'roof',contract:ASSEMBLY_CONTRACT,items,seam,joinedAtX:0,fullLength:p.length};
+  }
+  if(def.type==='eave'){
+    // Original eave module widths remain within their certified parameter bounds;
+    // repeat stations (tiles, rafters, brackets) are in global X, not local X.
+    const leftX=-p.length/2,rightX=p.length/2;
+    const left=buildModule(def,{}, {worldX:leftX,referenceLength:p.length,joins:{right:true}});
+    const right=buildModule(def,{}, {worldX:rightX,referenceLength:p.length,joins:{left:true}});
+    const a=left.metadata.anchors,b=right.metadata.anchors,issues=[];
+    if(Math.abs(a.endX+leftX-(b.startX+rightX))>1e-7)issues.push('seam_world_x');
+    if(Math.abs(a.frontZ-b.frontZ)>1e-7)issues.push('front_depth');
+    if(Math.abs(a.bearingY-b.bearingY)>1e-7)issues.push('bearing_height');
+    for(const k of ['rafterPitch','bracketPitch','tilePitch','axisZ'])if(Math.abs(a[k]-b[k])>1e-7)issues.push(k);
+    return {family:'eave',contract:ASSEMBLY_CONTRACT,items:[{module:left,pos:[leftX,0,0],plinth:false},{module:right,pos:[rightX,0,0],plinth:false}],seam:{ok:issues.length===0,issues},joinedAtX:0,fullLength:p.length*2};
+  }
+  throw new Error('Unsupported assembly family');
+}
+/** Returns unique world coordinates of visible tile vertices lying on seam plane. */
+function tileSeamVertices(item,globalX,partName){
+ const xyz=[];
+ for(const part of item.module.parts.filter(x=>x.id.includes(partName))){
+  for(let i=0;i<part.positions.length;i+=3){const x=part.positions[i]+item.pos[0];
+   if(Math.abs(x-globalX)<1e-7)xyz.push(`${part.positions[i+1].toFixed(6)},${part.positions[i+2].toFixed(6)}`);
+  }
+ }
+ return [...new Set(xyz)].sort();
+}
+
+// webgl.js
+
+
+const VS=`#version 300 es
+precision highp float;
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec3 aNorm;
+uniform mat4 uVP;
+uniform vec3 uOffset;
+uniform vec3 uExplodeOffset;
+uniform float uExplode;
+out vec3 vN;out vec3 vWorld;out float vDepth;
+void main(){vec3 p=aPos+uOffset+uExplodeOffset*uExplode;vN=aNorm;vWorld=p;vec4 q=uVP*vec4(p,1.0);vDepth=q.w;gl_Position=q;}`;
+const FS=`#version 300 es
+precision highp float;
+in vec3 vN;in vec3 vWorld;in float vDepth;
+uniform vec3 uColor;uniform float uRough;uniform float uAlpha;
+out vec4 frag;
+void main(){
+ vec3 N=normalize(gl_FrontFacing?vN:-vN);vec3 sun=normalize(vec3(-0.55,0.88,0.65));vec3 fill=normalize(vec3(.6,.42,-.8));
+ float l=max(dot(N,sun),0.0);float f=max(dot(N,fill),0.0);
+ float ambient=.55;float soft=ambient+.48*l+.12*f;
+ float edge=.88+.12*abs(N.y);float warm=.035*max(dot(N,sun),0.0);
+ vec3 c=uColor*soft*edge+vec3(warm*.75,warm*.48,warm*.20);
+ float fog=clamp((vDepth-8.)/23.,0.,1.)*.14;
+ c=mix(c,vec3(.935,.892,.831),fog);
+ frag=vec4(pow(max(c,vec3(.0)),vec3(.95)),uAlpha);
+}`;
+const MATERIALS={
+ plaster:{color:'#f5e9d7',rough:1},plasterShade:{color:'#d7c9b3',rough:1},
+ stone:{color:'#8f8a80',rough:1},slate:{color:'#54565a',rough:.8},slateEdge:{color:'#858589',rough:.85},
+ slateLight:{color:'#777980',rough:.8},slateDark:{color:'#333a3b',rough:.95},
+ wood:{color:'#885531',rough:.9},woodDark:{color:'#573922',rough:.95},woodLight:{color:'#ad7447',rough:.85},
+ cut:{color:'#715b47',rough:1},brass:{color:'#a17b4a',rough:1},
+ platform:{color:'#c4ad91',rough:1},platformTop:{color:'#ece0ce',rough:1},
+ shadow:{color:'#726657',rough:1},floor:{color:'#e9dfd1',rough:1}
+};
+function rgb(hex){return [1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255)}
+function shader(gl,t,s){let x=gl.createShader(t);gl.shaderSource(x,s);gl.compileShader(x);if(!gl.getShaderParameter(x,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(x));return x;}
+function program(gl){let p=gl.createProgram();gl.attachShader(p,shader(gl,gl.VERTEX_SHADER,VS));gl.attachShader(p,shader(gl,gl.FRAGMENT_SHADER,FS));gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(p));return p;}
+const perspective=(fov,aspect,n,f)=>{const y=1/Math.tan(fov/2),x=y/aspect,N=1/(n-f);return [x,0,0,0, 0,y,0,0, 0,0,(f+n)*N,-1, 0,0,2*f*n*N,0]};
+const lookAt=(eye,target)=>{const z=norm(sub(eye,target)),x=norm(cross([0,1,0],z)),y=cross(z,x);return [x[0],y[0],z[0],0, x[1],y[1],z[1],0, x[2],y[2],z[2],0, -dot(x,eye),-dot(y,eye),-dot(z,eye),1]};
+const multiply=(a,b)=>{const o=new Array(16).fill(0);for(let i=0;i<4;i++)for(let j=0;j<4;j++)for(let k=0;k<4;k++)o[i*4+j]+=a[k*4+j]*b[i*4+k];return o};
+
+/** Shared mouse / touch orbit: one finger rotates, two fingers pinch to zoom. */
+function attachOrbit(view,canvas){
+ const fingers=new Map();let lastCenter=null,lastGap=null;
+ const clampDistance=()=>{view.distance=Math.max(3.5,Math.min(28,view.distance));};
+ function centerAndGap(){const arr=[...fingers.values()];
+  if(arr.length===1)return {center:arr[0],gap:null};
+  if(arr.length>=2){const a=arr[0],b=arr[1];return {center:[(a[0]+b[0])/2,(a[1]+b[1])/2],gap:Math.hypot(a[0]-b[0],a[1]-b[1])};}
+  return {center:null,gap:null};}
+ const move=()=>{const v=centerAndGap();
+   if(v.gap!==null&&lastGap!==null&&v.gap>2&&lastGap>2){view.distance*=lastGap/v.gap;clampDistance();}
+   else if(fingers.size===1&&lastCenter){view.yaw-=(v.center[0]-lastCenter[0])*.008;view.pitch=Math.max(-.11,Math.min(1.28,view.pitch+(v.center[1]-lastCenter[1])*.006));}
+   lastCenter=v.center;lastGap=v.gap;};
+ canvas.addEventListener('pointerdown',e=>{fingers.set(e.pointerId,[e.clientX,e.clientY]);try{canvas.setPointerCapture(e.pointerId)}catch{};let v=centerAndGap();lastCenter=v.center;lastGap=v.gap;canvas.style.cursor='grabbing'});
+ canvas.addEventListener('pointermove',e=>{if(!fingers.has(e.pointerId))return;fingers.set(e.pointerId,[e.clientX,e.clientY]);move()});
+ const finish=e=>{fingers.delete(e.pointerId);let v=centerAndGap();lastCenter=v.center;lastGap=v.gap;if(!fingers.size)canvas.style.cursor='grab';};
+ canvas.addEventListener('pointerup',finish);canvas.addEventListener('pointercancel',finish);
+ canvas.addEventListener('wheel',e=>{e.preventDefault();view.distance*=Math.exp(e.deltaY*.0011);clampDistance()},{passive:false});
+}
+
+class Renderer {
+ constructor(canvas){
+  this.canvas=canvas;this.gl=canvas.getContext('webgl2',{antialias:true,alpha:true,preserveDrawingBuffer:true,premultipliedAlpha:false});
+  if(!this.gl)throw new Error('WebGL2 unavailable. Use Chrome or Edge with hardware acceleration.');
+  const gl=this.gl;this.p=program(gl);gl.useProgram(this.p);
+  this.uniforms=Object.fromEntries(['uVP','uOffset','uExplodeOffset','uColor','uRough','uAlpha','uExplode'].map(k=>[k,gl.getUniformLocation(this.p,k)]));
+  this.cache=new WeakMap();this.items=[];
+  gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.disable(gl.CULL_FACE);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+  this.yaw=.65;this.pitch=.29;this.distance=9.4;this.target=[0,1.72,0];this.explode=0;this.drawCalls=0;
+  this.shared=this.makeGround();this.bindControls();this.resize();
+  window.addEventListener('resize',()=>this.resize());
+ }
+ makeGround(){
+  const base=new Mesh('ground','floor');base.quad([-60,-.28,-60],[60,-.28,-60],[60,-.28,60],[-60,-.28,60]);
+  const platform=new Mesh('platform','platform');platform.box(0,-.08,0,5.7,.25,4.9);
+  const top=new Mesh('top','platformTop');top.box(0,.048,0,5.75,.025,4.94);
+  const shadows=[];for(let i=0;i<10;i++){
+   const s=new Mesh(`shadow-${i}`,'shadow');let r=2.7+i*.12;
+   s.grid((u,v)=>{let a=u*2*PI,z=r*Math.sin(a),x=r*Math.cos(a);return [(1-v)*x,-.272+i*.0002,(1-v)*z*.68]},44,1);
+   shadows.push(s);
+  }
+  return {base,platform,top,shadows};
+ }
+ bindControls(){attachOrbit(this,this.canvas)}
+ resize(){const s=window.devicePixelRatio||1,rect=this.canvas.getBoundingClientRect();if(!rect.width||!rect.height)return;this.canvas.width=Math.round(rect.width*Math.min(2,s));this.canvas.height=Math.round(rect.height*Math.min(2,s));this.gl.viewport(0,0,this.canvas.width,this.canvas.height);}
+ compile(mesh){const gl=this.gl;let obj=this.cache.get(mesh);if(obj)return obj;
+  const vao=gl.createVertexArray();gl.bindVertexArray(vao);
+  const data=new Float32Array(mesh.positions.length*2);for(let i=0;i<mesh.positions.length;i+=3){const o=i*2;for(let j=0;j<3;j++){data[o+j]=mesh.positions[i+j];data[o+3+j]=mesh.normals[i+j];}}
+  const buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.bufferData(gl.ARRAY_BUFFER,data,gl.STATIC_DRAW);
+  gl.vertexAttribPointer(0,3,gl.FLOAT,false,24,0);gl.enableVertexAttribArray(0);gl.vertexAttribPointer(1,3,gl.FLOAT,false,24,12);gl.enableVertexAttribArray(1);gl.bindVertexArray(null);
+  obj={vao,vertexCount:mesh.positions.length/3};this.cache.set(mesh,obj);return obj;
+ }
+ drawMesh(mesh,offset=[0,0,0],opacity=1,explodeOffset=[0,0,0]){
+  if(!mesh.positions.length)return;
+  const gl=this.gl,u=this.uniforms,obj=this.compile(mesh),mat=MATERIALS[mesh.material]||MATERIALS.plaster;
+  gl.uniform3fv(u.uColor,rgb(mat.color));gl.uniform1f(u.uRough,mat.rough);gl.uniform1f(u.uAlpha,opacity);
+  gl.uniform3fv(u.uOffset,offset);gl.uniform3fv(u.uExplodeOffset,explodeOffset);
+  gl.bindVertexArray(obj.vao);gl.drawArrays(gl.TRIANGLES,0,obj.vertexCount);this.drawCalls++;
+ }
+ render(){
+  const gl=this.gl;gl.viewport(0,0,this.canvas.width,this.canvas.height);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  const aspect=this.canvas.width/this.canvas.height||1;
+  const eye=[this.target[0]+this.distance*Math.sin(this.yaw)*Math.cos(this.pitch),this.target[1]+this.distance*Math.sin(this.pitch),this.target[2]+this.distance*Math.cos(this.yaw)*Math.cos(this.pitch)];
+  gl.useProgram(this.p);gl.uniformMatrix4fv(this.uniforms.uVP,false,new Float32Array(multiply(perspective(.76,aspect,.07,120),lookAt(eye,this.target))));
+  gl.uniform1f(this.uniforms.uExplode,this.explode);this.drawCalls=0;
+  this.drawMesh(this.shared.base);
+  for(const item of this.items){
+   const tx=item.pos[0],tz=item.pos[2];
+   // draw soft ambient-occlusion-like ground shadow, behind the plinth
+   gl.depthMask(false);for(let i=9;i>=0;i--)this.drawMesh(this.shared.shadows[i],[tx,0,tz],.012+(9-i)*.002);
+   gl.depthMask(true);
+   if(item.plinth!==false){this.drawMesh(this.shared.platform,[tx,0,tz]);this.drawMesh(this.shared.top,[tx,0,tz]);}
+   for(const part of item.module.parts){
+    const n=part.id.toLowerCase();const e=n.includes('ridge')?[0,.22,0]:n.includes('tiles')?[0,.06,.10]:n.includes('wood')||n.includes('bracket')||n.includes('rafter')?[0,-.25,.18]:n.includes('cap')?[0,.15,0]:[0,0,0];
+    this.drawMesh(part,item.pos,1,e);
+   }
+  }
+  gl.bindVertexArray(null);
+ }
+ setItems(items){this.items=items;}
+ focus(mode='single'){
+  this.target=[0,mode==='compare'?1.7:1.74,0];this.distance=mode==='compare'?17.8:9.3;this.yaw=.61;this.pitch=.31;if(window.innerWidth<=820){this.distance*=1.12;this.target[1]+=.38;}
+ }
+}
+
+/** Portable read-only display fallback when WebGL2 is disabled by a sandbox or policy.
+ * Draws the exact same parametric mesh with a CPU painter's algorithm; it is NOT
+ * evidence of a successful real-WebGL visual Gate. */
+class CanvasRenderer {
+ constructor(canvas){this.canvas=canvas;this.ctx=canvas.getContext('2d');if(!this.ctx)throw new Error('Neither WebGL2 nor Canvas2D available');this.isFallback=true;
+  this.yaw=.65;this.pitch=.29;this.distance=9.4;this.target=[0,1.72,0];this.explode=0;this.items=[];this.setPointer();this.resize();window.addEventListener('resize',()=>this.resize());}
+ resize(){const d=Math.min(1.5,window.devicePixelRatio||1),r=this.canvas.getBoundingClientRect();this.canvas.width=Math.round(r.width*d);this.canvas.height=Math.round(r.height*d);}
+ setPointer(){attachOrbit(this,this.canvas)}
+ focus(mode='single'){this.target=[0,mode==='compare'?1.7:1.74,0];this.distance=mode==='compare'?17.8:9.3;this.yaw=.61;this.pitch=.31;if(window.innerWidth<=820){this.distance*=1.12;this.target[1]+=.38;}}
+ setItems(items){this.items=items;}
+ render(){const ctx=this.ctx,W=this.canvas.width,H=this.canvas.height;ctx.clearRect(0,0,W,H);
+  const eye=[this.target[0]+this.distance*Math.sin(this.yaw)*Math.cos(this.pitch),this.target[1]+this.distance*Math.sin(this.pitch),this.target[2]+this.distance*Math.cos(this.yaw)*Math.cos(this.pitch)],
+   z=norm(sub(eye,this.target)),x=norm(cross([0,1,0],z)),y=cross(z,x),scale=H*.5/Math.tan(.76/2);
+  const project=p=>{let v=sub(p,eye),d=-dot(v,z);return [W*.5+dot(v,x)*scale/d,H*.5-dot(v,y)*scale/d,d]};
+  const all=[];const sun=norm([-.55,.88,.65]);
+  function emit(mesh,translate=[0,0,0],explode=[0,0,0],factor=0){
+   const pp=mesh.positions,nn=mesh.normals;let shift=[translate[0]+explode[0]*factor,translate[1]+explode[1]*factor,translate[2]+explode[2]*factor];
+   let color=rgb((MATERIALS[mesh.material]||MATERIALS.plaster).color);
+   for(let i=0;i<pp.length;i+=9){let coords=[];for(let k=0;k<9;k+=3)coords.push(project([pp[i+k]+shift[0],pp[i+k+1]+shift[1],pp[i+k+2]+shift[2]]));
+    if(coords.some(q=>q[2]<.04))continue;
+    let n=[nn[i],nn[i+1],nn[i+2]],facing=dot(n,z)>=0?n:n.map(v=>-v),d=Math.max(.32,.50+Math.max(0,dot(facing,sun))*.56);
+    const fog=Math.min(.17,Math.max(0,(coords[0][2]-7)/35));
+    const col=color.map((v,k)=>Math.max(0,Math.min(255,Math.round(255*(v*d*(1-fog)+[.935,.892,.831][k]*fog)))));
+    all.push({p:coords,z:(coords[0][2]+coords[1][2]+coords[2][2])/3,c:`rgb(${col.join(',')})`});
+   }
+  }
+  for(const item of this.items){
+   const pos=item.pos;const p0=[pos[0],-.10,pos[2]];const sc=project(p0);
+   // Grounding shadow and clean stone studio plinth (separate from topology)
+   const rx=2.55*scale/sc[2],ry=1.08*scale/sc[2];let grad=ctx.createRadialGradient(sc[0],sc[1],4,sc[0],sc[1],Math.max(rx,ry));grad.addColorStop(0,'rgba(38,37,32,.28)');grad.addColorStop(1,'rgba(52,52,45,0)');
+   ctx.save();ctx.translate(sc[0],sc[1]);ctx.scale(1,ry/rx);ctx.fillStyle=grad;ctx.beginPath();ctx.arc(0,0,rx,0,PI*2);ctx.fill();ctx.restore();
+   if(item.plinth!==false){const slab=new Mesh('slab','platform');slab.box(0,-.11,0,5.6,.24,4.8);emit(slab,pos);
+   const slabTop=new Mesh('top','platformTop');slabTop.box(0,.02,0,5.65,.024,4.84);emit(slabTop,pos);}
+   for(const part of item.module.parts){const n=part.id.toLowerCase(),e=n.includes('ridge')?[0,.22,0]:n.includes('tiles')?[0,.06,.10]:n.includes('wood')||n.includes('bracket')||n.includes('rafter')?[0,-.25,.18]:n.includes('cap')?[0,.15,0]:[0,0,0];emit(part,pos,e,this.explode);}
+  }
+  all.sort((a,b)=>b.z-a.z);
+  for(const q of all){ctx.fillStyle=q.c;ctx.beginPath();ctx.moveTo(q.p[0][0],q.p[0][1]);ctx.lineTo(q.p[1][0],q.p[1][1]);ctx.lineTo(q.p[2][0],q.p[2][1]);ctx.closePath();ctx.fill();}
+ }
+}
+
+// main.js
+
+
+
+
+const $=id=>document.getElementById(id);
+const cards=$('module-list'),title=$('module-title'),subtitleEl=$('module-subtitle'),stats=$('stats'),controls=$('parameter-controls'),status=$('stage-status');
+let renderer=null,active=MODULES[0],mode='single',overrides={},wire=false,animate=true;
+const allInstances=new Map();
+try{renderer=new Renderer($('scene'));$('renderer-error').hidden=true;$('runtime-state').textContent='●　WebGL2 · 实时研究预览';}catch(e){renderer=new CanvasRenderer($('scene'));$('renderer-error').hidden=true;$('runtime-state').textContent='◌　Canvas 兼容 · GPU Gate 待验';console.warn('WebGL2 unavailable, geometry shown with Canvas2D fallback:',e.message);}
+function build(def,over={}){const signature=JSON.stringify([def.id,over]);if(!allInstances.has(signature))allInstances.set(signature,buildModule(def,over));return allInstances.get(signature);}
+const icons={wall:'▱',roof:'⌂',eave:'≋'};
+function renderCards(){cards.innerHTML='';for(const def of MODULES){if(['MH-01','RF-01','EV-01'].includes(def.id)){const cap=document.createElement('div');cap.className='family';cap.style.margin='14px 9px 5px';cap.textContent=def.type==='wall'?'01 / MA-TOU WALLS':def.type==='roof'?'02 / ROOF SURFACES':'03 / WOODEN EAVES';cards.appendChild(cap);}const b=document.createElement('button');b.className=`module-card ${active.id===def.id&&mode!=='compare'?'active':''}`;b.innerHTML=`<span class="module-icon ${def.type}">${icons[def.type]}</span><span class="module-name"><strong>${def.name}</strong><small>${def.id} · ${def.en}</small></span><span class="card-arrow">↗</span>`;b.onclick=()=>{active=def;mode='single';overrides={};sync();};cards.appendChild(b);}}
+function load(){
+ const variants=mode==='compare'? [MODULES[0],MODULES[4],MODULES[8]] : [active];
+ const fixture=mode==='assembly'?parallelFixture(active):null;
+ const items=fixture?fixture.items:variants.map((def,i)=>({module:build(def,mode==='compare'?{}:overrides),pos:mode==='compare'?[(-1+i)*6.3,0,0]:[0,0,0]}));
+ renderer.assembly=Boolean(fixture);
+ renderer.setItems(items);
+ $('module-sub-id').textContent=mode==='compare'?'01–03':mode==='assembly'?'SEAM':String(MODULES.indexOf(active)+1).padStart(2,'0');
+ title.textContent=mode==='compare'?'三类核心构件 · 并排审查':mode==='assembly'?`${active.id} · 两段精确拼接`:active.name;
+ subtitleEl.textContent=mode==='compare'?'马头墙 / 弧形灰瓦屋顶 / 多层木构檐口':mode==='assembly'?'世界 X=0 接缝 · 可旋转检查瓦垄 / 木构相位':`${active.id} · ${active.en}`;
+ const total=items.reduce((x,i)=>x+i.module.metrics.triangles,0);
+ stats.innerHTML=`<span><strong>${items.length}</strong> 模块</span><span><strong>${total.toLocaleString('en-US')}</strong> 三角面</span><span><strong>${items.reduce((a,v)=>a+v.module.metrics.meshes,0)}</strong> 构件网格</span>`;
+ renderControls();renderCards();renderer.focus(mode);if(mode==='assembly'&&active.type==='eave')renderer.distance=15.2;if(mode==='single'&&active.type==='eave'){renderer.pitch=.05;renderer.yaw=.58;renderer.distance=8.5;renderer.target=[0,1.98,.15];}
+ $('compare').classList.toggle('on',mode==='compare');$('compare').setAttribute('aria-pressed',String(mode==='compare'));
+ $('assembly').classList.toggle('on',mode==='assembly');$('assembly').setAttribute('aria-pressed',String(mode==='assembly'));
+ $('mobile-module').value=active.id;
+ $('fallback-image').src=(active.type==='roof'?document.querySelector('#preload-rf').src:active.type==='eave'?document.querySelector('#preload-ev').src:document.querySelector('#preload-wall').src);
+ $('validation').textContent=fixture?`平行拼接 ${fixture.seam.ok?'数学契约 PASS':'FAIL'} · ${fixture.seam.issues.join(',')||'世界 X 接缝一致'} · 视觉仍待验收`:'参数合法 · 重生成确定性 · 连接契约可测（浏览器视觉待用户验收）';
+ status.textContent=mode==='compare'?'对照研究 · 非组合场景':mode==='assembly'?'真实双模块拼接 · 视觉验收开放':'待视觉验收 · 不代表 G1-M1 完成';
+}
+const editConfig={wall:[['steps','阶数',3,5,1],['stepRise','级差高度',.28,.85,.01],['depth','墙厚',.25,.70,.01],['finial','卷翘程度',0,.7,.01]],roof:[['rise','屋顶起坡',.55,1.55,.01],['tilePitch','瓦垄间距',.24,.42,.005],['tileArch','瓦截面拱高',.04,.15,.005],['halfSpan','半跨宽度',1.1,2,.01]],eave:[['projection','出檐深度',.7,1.55,.01],['bracketCount','斗拱数量',3,8,1],['rafterCount','椽子数量',8,24,1],['beamDepth','梁构厚度',.14,.32,.01]]};
+function renderControls(){
+ controls.innerHTML='';if(mode!=='single'){controls.innerHTML=mode==='assembly'?'<p class="muted">拼接模式使用当前模块的确定性基准参数与全局相位。接缝检查覆盖同类相邻瓦面、檐口；异类组合尚未批准。</p>':'<p class="muted">对照模式使用三个标杆件的初始参数。点选模块进入单件调参。</p>';return;}
+ const p=resolve(active,overrides).params;
+ for(const [key,label,min,max,step] of editConfig[active.type]){
+  const box=document.createElement('label');box.className='param';
+  const h=document.createElement('span');h.innerHTML=`<span>${label}</span><output>${Number(p[key].toFixed(3))}${Number.isInteger(step)&&step===1?'':' m'}</output>`;
+  const input=document.createElement('input');input.type='range';input.min=min;input.max=max;input.step=step;input.value=p[key];
+  input.oninput=()=>{overrides[key]=Number(input.value);h.querySelector('output').textContent=Number(input.value).toFixed(step===1?0:3)+(step===1?'':' m');
+   const it={module:build(active,overrides),pos:[0,0,0]};renderer.setItems([it]);const m=it.module.metrics;stats.innerHTML=`<span><strong>1</strong> 模块</span><span><strong>${m.triangles.toLocaleString('en-US')}</strong> 三角面</span><span><strong>${m.meshes}</strong> 构件网格</span>`;
+  };
+  box.appendChild(h);box.appendChild(input);controls.appendChild(box);
+ }
+}
+function sync(){load();}
+$('compare').onclick=()=>{mode=mode==='compare'?'single':'compare';overrides={};sync();};
+$('assembly').onclick=()=>{if(mode==='assembly'){mode='single'}else{if(active.type==='wall')active=MODULES.find(x=>x.id==='RF-01');mode='assembly';}overrides={};sync();};
+$('mobile-module').innerHTML=MODULES.map(m=>`<option value="${m.id}">${m.id} · ${m.name}</option>`).join('');
+$('mobile-module').onchange=()=>{active=MODULES.find(x=>x.id===$('mobile-module').value)??MODULES[0];mode='single';overrides={};sync();};
+$('reset').onclick=()=>{overrides={};sync();};
+$('home').onclick=()=>{renderer.focus(mode);if(mode==='assembly'&&active.type==='eave')renderer.distance=15.2;if(mode==='single'&&active.type==='eave'){renderer.pitch=.05;renderer.yaw=.58;renderer.distance=8.5;renderer.target=[0,1.98,.15];}};
+$('explode').onclick=()=>{renderer.explode=renderer.explode?0:1;$('explode').classList.toggle('on',!!renderer.explode)};
+$('reference').onclick=()=>{$('reference-panel').classList.toggle('open')};
+$('close-reference').onclick=()=>{$('reference-panel').classList.remove('open')};
+$('screenshot').onclick=()=>{renderer.render();let a=document.createElement('a');a.href=$('scene').toDataURL('image/png');a.download=`EW-G1-M1-${mode==='compare'?'3-heroes':active.id}.png`;a.click();};
+$('reproduce').onclick=()=>{const data={module:active.id,params:resolve(active,overrides).params,view:{yaw:renderer.yaw,pitch:renderer.pitch,distance:renderer.distance},mode};
+ navigator.clipboard?.writeText(JSON.stringify(data,null,2)).then(()=>{$('reproduce').textContent='✓ 已复制';setTimeout(()=>$('reproduce').textContent='复制构型 JSON',1200)}).catch(()=>alert(JSON.stringify(data,null,2)));};
+let firstPaint=true;function tick(){renderer.render();if(firstPaint){firstPaint=false;$('viewport').classList.add('has-render')}if(renderer.isFallback)setTimeout(tick,450);else requestAnimationFrame(tick)}sync();tick();
+window.__atlas={get active(){return active.id},get mode(){return mode},get metrics(){return renderer.items.map(x=>x.module.metrics)},select:(id)=>{const m=MODULES.find(d=>d.id===id);if(m){active=m;mode='single';overrides={};sync();}},renderer};
+
