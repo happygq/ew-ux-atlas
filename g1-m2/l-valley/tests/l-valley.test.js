@@ -76,3 +76,29 @@ test('deliberately corrupted seam or drain is rejected by independent contract f
  const j=checkCornerContract(g.params,g.parts,f);
  assert.equal(j.ok,false);assert.ok(j.issues.includes('valley_not_downhill'));assert.ok(j.issues.includes('outlet_not_exterior_or_downhill'));
 });
+
+// G203 owner finding: gable and L-house were in different vertical datums.
+for(const settings of [DEFAULT,{mainLength:7.1,wingLength:4.6}]){
+ test(`gable wall-bottom and stone base seats align with L-house finished floor (${settings.mainLength} m)`,()=>{
+  const g=buildLValley(settings);
+  const finish=find(g,'L-floor-stone-surface').bounds().max[1];
+  assert.ok(sep(finish,.025));
+  assert.ok(sep(g.metadata.gables.finishedFloorY,finish));
+  assert.ok(sep(g.metadata.gables.seatOffsetY,-.255));
+  for(const arm of ['main','wing']){
+   const wall=g.parts.find(p=>p.id.includes(`gable-${arm}/MH-01/wall-body/`));
+   const stone=g.parts.find(p=>p.id.includes(`gable-${arm}/MH-01/stone-socle/`));
+   assert.ok(wall&&stone);
+   assert.ok(sep(wall.bounds().min[1],finish),`${arm} wall floating over finished floor`);
+   const b=stone.bounds();assert.ok(b.min[1]<=finish&&b.max[1]>=finish);
+  }
+ });
+}
+test('contract independently detects gable vertical misregistration',()=>{
+ const g=buildLValley(),wall=g.parts.find(p=>p.id.includes('gable-main/MH-01/wall-body/'));
+ assert.ok(wall);
+ for(let i=1;i<wall.positions.length;i+=3)wall.positions[i]+=.20;
+ const result=checkCornerContract(g.params,g.parts,{width:g.seams.flashingWidth,
+   outlet:g.seams.drain,valleyPath:g.seams.valley.map(v=>[v[0],v[1]-.028,v[2]])});
+ assert.ok(result.issues.includes('gable_floor_datum_mismatch'),result.issues.join(','));
+});

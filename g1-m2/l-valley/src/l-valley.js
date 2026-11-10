@@ -16,6 +16,9 @@ export const L_VALLEY_CONTRACT = 'ew/ux/l-valley-v0.1';
 const ROOF_MAT = {under:'slateDark',slate:'slate',edge:'slateEdge',light:'slateLight',wood:'wood',woodDark:'woodDark'};
 const WALL=MODULES.find(m=>m.id==='MH-01');
 const EPS=1e-8;
+// One architectural datum for slab finish and imported gable base seats.
+const FLOOR_SURFACE={centerY:.01,thickness:.03};
+const FINISHED_FLOOR_Y=FLOOR_SURFACE.centerY+FLOOR_SURFACE.thickness/2;
 const round=n=>Math.round(n*1e8)/1e8;
 
 function assertConfig(o){
@@ -202,12 +205,18 @@ function remeshPart(part,fn,tag){const out=new Mesh(`${tag}/${part.id}`,part.mat
 function addGables(out,p){
  const params={width:3.6,depth:.38,wallHeight:2.30,stepRise:.48,steps:4};
  const g=buildModule(WALL,params); const depth=.38;
+ // G1-M1 gables are independent modules with a local baseY (0.28 m).
+ // Register that semantic wallSeat to the L-house's *finished floor* datum;
+ // do not reinterpret module wallHeight, which would alter the accepted profile.
+ const localSeatY=g.metadata.anchors.wallSeat.y;
+ const seatOffsetY=FINISHED_FLOOR_Y-localSeatY;
  // Both gable inner planes coincide with their respective roof ends.
  for(const [arm,end] of [['main',p.mainLength],['wing',p.wingLength]]){
-  const transformed=g.parts.map(part=>remeshPart(part,q=>arm==='main'?[end+depth/2-q[2],q[1],q[0]]:[q[0],q[1],end+depth/2-q[2]],`gable-${arm}`));
+  const transformed=g.parts.map(part=>remeshPart(part,q=>arm==='main'?[end+depth/2-q[2],q[1]+seatOffsetY,q[0]]:[q[0],q[1]+seatOffsetY,end+depth/2-q[2]],`gable-${arm}`));
   out.parts.push(...transformed);
  }
- return {wallDepth:depth,wallCapSpans:g.metadata.anchors.capSpans};
+ return {wallDepth:depth,localSeatY,finishedFloorY:FINISHED_FLOOR_Y,seatOffsetY,
+  wallCapSpans:g.metadata.anchors.capSpans.map(span=>({...span,level:span.level+seatOffsetY}))};
 }
 function addShell(out,p){
  const s=p.halfSpan;
@@ -219,8 +228,8 @@ function addShell(out,p){
  // Two abutting slabs, not overlapping rectangular slabs.
  stone.box((p.mainLength-s)/2,-.18,0,p.mainLength+s,.35,2*s);
  stone.box(0,-.18,(p.wingLength+s)/2,2*s,.35,p.wingLength-s);
- top.box((p.mainLength-s)/2,.01,0,p.mainLength+s,.03,2*s);
- top.box(0,.01,(p.wingLength+s)/2,2*s,.03,p.wingLength-s);
+ top.box((p.mainLength-s)/2,FLOOR_SURFACE.centerY,0,p.mainLength+s,FLOOR_SURFACE.thickness,2*s);
+ top.box(0,FLOOR_SURFACE.centerY,(p.wingLength+s)/2,2*s,FLOOR_SURFACE.thickness,p.wingLength-s);
  const lines=[
   ['main',-1,-s,p.mainLength],['main',1,s,p.mainLength],
   ['wing',-1,-s,p.wingLength],['wing',1,s,p.wingLength]
@@ -275,6 +284,19 @@ export function checkCornerContract(p,parts,flash){
  if(drop<=.5)issues.push('insufficient_valley_drop');
  for(let i=0;i<flash.valleyPath.length-1;i++)if(flash.valleyPath[i+1][1]>=flash.valleyPath[i][1]-1e-8)issues.push('valley_not_downhill');
  if(!(flash.outlet[0]>s&&flash.outlet[2]>s&&flash.outlet[1]<flash.valleyPath.at(-1)[1]))issues.push('outlet_not_exterior_or_downhill');
+ // Mixed-family contract: the gable body's physical bottom must seat on
+ // the same finished-floor surface as the connected L-house, not at local baseY.
+ const floor=parts.find(x=>x.id.includes('/L-floor-stone-surface/'));
+ const floorTop=floor?.bounds().max[1];
+ if(!Number.isFinite(floorTop)||Math.abs(floorTop-FINISHED_FLOOR_Y)>EPS)issues.push('floor_datum_mismatch');
+ for(const arm of ['main','wing']){
+  const wall=parts.find(x=>x.id.includes(`gable-${arm}/MH-01/wall-body/`));
+  const socle=parts.find(x=>x.id.includes(`gable-${arm}/MH-01/stone-socle/`));
+  if(!wall||!socle){issues.push('missing_gable_seat');continue;}
+  const base=wall.bounds().min[1],stoneBounds=socle.bounds();
+  if(Math.abs(base-floorTop)>EPS)issues.push('gable_floor_datum_mismatch');
+  if(stoneBounds.min[1]>floorTop+EPS||stoneBounds.max[1]<floorTop-EPS)issues.push('gable_socle_not_seated');
+ }
  const normalDelta=Math.abs(roofSlope(roofParams(p),.0001));
  if(normalDelta<=0)issues.push('invalid_valley_cross_slope');
  return {ok:issues.length===0,issues:[...new Set(issues)],contract:L_VALLEY_CONTRACT,
