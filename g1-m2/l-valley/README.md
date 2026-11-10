@@ -1,3 +1,7 @@
+## G203 v0.3 owner visual acceptance — 2026-11-10
+
+**Owner confirmed “视觉复核通过。继续”** after reviewing the corrected handedness and grounding/foundation build. The previously accepted hip/valley/drainage geometry and the subsequently repaired two-ended decorative façade orientation, gable bearing and house wall/floor datum form the **G203 visual baseline**. Automated evidence: 38/38 G203 v0.3 tests. Acceptance does not claim full watertightness, measured device GPU performance, arbitrary topologies, or G204 T/U completion. Further work proceeds in a new `/g1-m2/t-u/` preview without modifying this accepted G203 page.
+
 # G203 v0.3 — End-gable handedness, datum and physical bearing correction
 
 **Status: code/tests complete; mobile visual review PENDING.** 2026-11-10. Owner previously accepted roof valley/drainage. v0.2 corrected the gable wall-seat Y only; it did not fix the adjacent house wall bottoms or foundation coverage. v0.3 addresses both issues and the newly reported inverted grey-brick exterior.
