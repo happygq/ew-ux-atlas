@@ -16,6 +16,15 @@ export const L_VALLEY_CONTRACT = 'ew/ux/l-valley-v0.1';
 const ROOF_MAT = {under:'slateDark',slate:'slate',edge:'slateEdge',light:'slateLight',wood:'wood',woodDark:'woodDark'};
 const WALL=MODULES.find(m=>m.id==='MH-01');
 const EPS=1e-8;
+// G1-M1's stepped gable has asymmetric surface decoration at local +Z.
+// For either house end, local +Z MUST face away from the occupied room.
+export const GABLE_ASSEMBLY_CONTRACT='ew/ux/gable-facing-and-bearing-v0.3';
+const GABLE_WIDTH=3.6;
+const GABLE_DEPTH=.38;
+const GABLE_PARAMS=Object.freeze({width:GABLE_WIDTH,depth:GABLE_DEPTH,wallHeight:2.30,stepRise:.48,steps:4});
+const PERIMETER_WALL_TOP=1.63;
+const SUPPORT_PIER_TOP=1.57;
+const CORNER_PIER_TOP=1.67;
 // One architectural datum for slab finish and imported gable base seats.
 const FLOOR_SURFACE={centerY:.01,thickness:.03};
 const FINISHED_FLOOR_Y=FLOOR_SURFACE.centerY+FLOOR_SURFACE.thickness/2;
@@ -201,22 +210,50 @@ function addEaveConstruction(out,p){
  }
  return {segments:segments.map(e=>({...e,start:at(e.arm,e.a,e.side*p.halfSpan,0),end:at(e.arm,e.b,e.side*p.halfSpan,0)}))};
 }
-function remeshPart(part,fn,tag){const out=new Mesh(`${tag}/${part.id}`,part.material);for(let i=0;i<part.positions.length;i+=9)out.tri(fn(part.positions.slice(i,i+3)),fn(part.positions.slice(i+3,i+6)),fn(part.positions.slice(i+6,i+9)));return out;}
-function addGables(out,p){
- const params={width:3.6,depth:.38,wallHeight:2.30,stepRise:.48,steps:4};
- const g=buildModule(WALL,params); const depth=.38;
- // G1-M1 gables are independent modules with a local baseY (0.28 m).
- // Register that semantic wallSeat to the L-house's *finished floor* datum;
- // do not reinterpret module wallHeight, which would alter the accepted profile.
- const localSeatY=g.metadata.anchors.wallSeat.y;
- const seatOffsetY=FINISHED_FLOOR_Y-localSeatY;
- // Both gable inner planes coincide with their respective roof ends.
- for(const [arm,end] of [['main',p.mainLength],['wing',p.wingLength]]){
-  const transformed=g.parts.map(part=>remeshPart(part,q=>arm==='main'?[end+depth/2-q[2],q[1]+seatOffsetY,q[0]]:[q[0],q[1]+seatOffsetY,end+depth/2-q[2]],`gable-${arm}`));
-  out.parts.push(...transformed);
+function remeshPart(part,fn,tag,mirror=false){
+ const out=new Mesh(`${tag}/${part.id}`,part.material);
+ for(let i=0;i<part.positions.length;i+=9){
+  const a=fn(part.positions.slice(i,i+3)),b=fn(part.positions.slice(i+3,i+6)),c=fn(part.positions.slice(i+6,i+9));
+  // Reflections have negative determinant: swap winding to preserve outward normals.
+  out.tri(a,mirror?c:b,mirror?b:c);
  }
- return {wallDepth:depth,localSeatY,finishedFloorY:FINISHED_FLOOR_Y,seatOffsetY,
-  wallCapSpans:g.metadata.anchors.capSpans.map(span=>({...span,level:span.level+seatOffsetY}))};
+ return out;
+}
+/** Position one G1-M1 gable at a physical end-face of a RoofGroup.
+ * The roof terminal plane and gable INNER face coincide (at `end`).
+ * Local +Z carries the asymmetric exposed masonry, always facing the outside.
+ * `direction` is the outward signed direction on the selected world axis.
+ */
+export function buildGablePlacement(arm,end,direction=1){
+ if(arm!=='main'&&arm!=='wing')throw new RangeError('invalid_gable_axis');
+ if(direction!==1&&direction!==-1)throw new RangeError('invalid_gable_direction');
+ if(!Number.isFinite(end))throw new RangeError('invalid_gable_end');
+ const g=buildModule(WALL,GABLE_PARAMS),localSeatY=g.metadata.anchors.wallSeat.y;
+ const seatOffsetY=FINISHED_FLOOR_Y-localSeatY;
+ const center=end+direction*GABLE_DEPTH/2;
+ const map=q=>arm==='main'?[center+direction*q[2],q[1]+seatOffsetY,q[0]]:
+  [q[0],q[1]+seatOffsetY,center+direction*q[2]];
+ // The main-arm axis maps local X to world Z, reversing parity for +X.
+ // The wing axis maps local X to world X, reversing parity for -Z.
+ const mirror=arm==='main'?direction===1:direction===-1;
+ const label=direction===1?'positive':'negative';
+ const parts=g.parts.map(part=>remeshPart(part,map,`gable-${arm}-${label}`,mirror));
+ const outward=arm==='main'?[direction,0,0]:[0,0,direction];
+ const innerFace=end,outerFace=end+direction*GABLE_DEPTH;
+ return {parts,metadata:{arm,direction,outward,innerFace,outerFace,
+  floorY:FINISHED_FLOOR_Y,localSeatY,seatOffsetY,wallDepth:GABLE_DEPTH,
+  width:GABLE_WIDTH,mirroredTransform:mirror,
+  decorationLocalFace:'positiveZ',decoratedWorldFace:outerFace,
+  wallCapSpans:g.metadata.anchors.capSpans.map(span=>({...span,level:span.level+seatOffsetY}))}};
+}
+function addGables(out,p){
+ const main=buildGablePlacement('main',p.mainLength,1);
+ const wing=buildGablePlacement('wing',p.wingLength,1);
+ out.parts.push(...main.parts,...wing.parts);
+ return {wallDepth:GABLE_DEPTH,localSeatY:main.metadata.localSeatY,
+  finishedFloorY:FINISHED_FLOOR_Y,seatOffsetY:main.metadata.seatOffsetY,
+  contract:GABLE_ASSEMBLY_CONTRACT,
+  placements:[main.metadata,wing.metadata],wallCapSpans:main.metadata.wallCapSpans};
 }
 function addShell(out,p){
  const s=p.halfSpan;
@@ -230,25 +267,44 @@ function addShell(out,p){
  stone.box(0,-.18,(p.wingLength+s)/2,2*s,.35,p.wingLength-s);
  top.box((p.mainLength-s)/2,FLOOR_SURFACE.centerY,0,p.mainLength+s,FLOOR_SURFACE.thickness,2*s);
  top.box(0,FLOOR_SURFACE.centerY,(p.wingLength+s)/2,2*s,FLOOR_SURFACE.thickness,p.wingLength-s);
+ // The independent gables are OUTSIDE the roof termination planes. Extend the
+ // same-height continuous stone footing under their FULL wall thickness/width.
+ // Otherwise equal Y coordinates alone leave the terminal masonry unsupported.
+ for(const [arm,end] of [['main',p.mainLength],['wing',p.wingLength]]){
+  const feet=out.part('platform',`gable-${arm}-bearing-foundation`);
+  const finish=out.part('platformTop',`gable-${arm}-bearing-finished-floor`);
+  if(arm==='main'){
+   feet.box(end+GABLE_DEPTH/2,-.18,0,GABLE_DEPTH,.35,GABLE_WIDTH+.10);
+   finish.box(end+GABLE_DEPTH/2,FLOOR_SURFACE.centerY,0,GABLE_DEPTH,FLOOR_SURFACE.thickness,GABLE_WIDTH+.10);
+  }else{
+   feet.box(0,-.18,end+GABLE_DEPTH/2,GABLE_WIDTH+.10,.35,GABLE_DEPTH);
+   finish.box(0,FLOOR_SURFACE.centerY,end+GABLE_DEPTH/2,GABLE_WIDTH+.10,FLOOR_SURFACE.thickness,GABLE_DEPTH);
+  }
+ }
  const lines=[
   ['main',-1,-s,p.mainLength],['main',1,s,p.mainLength],
   ['wing',-1,-s,p.wingLength],['wing',1,s,p.wingLength]
  ];
  for(const [arm,side,a,b] of lines){
   const center=(a+b)/2,extent=b-a,dd=side*(s-.16);
-  const world=at(arm,center,dd,.89);
-  const sy=1.48;
+  const wallHeight=PERIMETER_WALL_TOP-FINISHED_FLOOR_Y;
+  const wallCenter=(PERIMETER_WALL_TOP+FINISHED_FLOOR_Y)/2;
+  const world=at(arm,center,dd,wallCenter);
   if(arm==='main'){
-   plaster.box(world[0],world[1],world[2],extent,sy,.30);
+   plaster.box(world[0],world[1],world[2],extent,wallHeight,.30);
    trim.box(world[0],1.60,world[2],extent,.075,.34);
   }else{
-   plaster.box(world[0],world[1],world[2],.30,sy,extent);
+   plaster.box(world[0],world[1],world[2],.30,wallHeight,extent);
    trim.box(world[0],1.60,world[2],.34,.075,extent);
   }
-  for(let t=a+.35;t<b-.15;t+=1.40){const c=at(arm,t,dd,.86);if(arm==='main')supports.box(c[0],c[1],c[2],.125,1.42,.35);else supports.box(c[0],c[1],c[2],.35,1.42,.125);}
+  const supportHeight=SUPPORT_PIER_TOP-FINISHED_FLOOR_Y;
+  const supportCenter=(SUPPORT_PIER_TOP+FINISHED_FLOOR_Y)/2;
+  for(let t=a+.35;t<b-.15;t+=1.40){const c=at(arm,t,dd,supportCenter);
+   if(arm==='main')supports.box(c[0],c[1],c[2],.125,supportHeight,.35);
+   else supports.box(c[0],c[1],c[2],.35,supportHeight,.125);}
  }
  // Inner corner's shared supporting pier beneath the rainwater outlet.
- supports.box(s-.20,.92,s-.20,.38,1.50,.38);
+ supports.box(s-.20,(CORNER_PIER_TOP+FINISHED_FLOOR_Y)/2,s-.20,.38,CORNER_PIER_TOP-FINISHED_FLOOR_Y,.38);
 }
 export function checkCornerContract(p,parts,flash){
  const issues=[],s=p.halfSpan,diag=diagonalSeam(p);
@@ -290,12 +346,39 @@ export function checkCornerContract(p,parts,flash){
  const floorTop=floor?.bounds().max[1];
  if(!Number.isFinite(floorTop)||Math.abs(floorTop-FINISHED_FLOOR_Y)>EPS)issues.push('floor_datum_mismatch');
  for(const arm of ['main','wing']){
-  const wall=parts.find(x=>x.id.includes(`gable-${arm}/MH-01/wall-body/`));
-  const socle=parts.find(x=>x.id.includes(`gable-${arm}/MH-01/stone-socle/`));
+  const wall=parts.find(x=>x.id.includes(`gable-${arm}-positive/MH-01/wall-body/`));
+  const socle=parts.find(x=>x.id.includes(`gable-${arm}-positive/MH-01/stone-socle/`));
   if(!wall||!socle){issues.push('missing_gable_seat');continue;}
   const base=wall.bounds().min[1],stoneBounds=socle.bounds();
   if(Math.abs(base-floorTop)>EPS)issues.push('gable_floor_datum_mismatch');
   if(stoneBounds.min[1]>floorTop+EPS||stoneBounds.max[1]<floorTop-EPS)issues.push('gable_socle_not_seated');
+  // Verify actual geometry, not the declared gable metadata. The outward
+  // decorative masonry must be outside the connecting roof-end plane.
+  const masonry=parts.find(x=>x.id.includes(`gable-${arm}-positive/MH-01/exposed-masonry/`));
+  const cornice=parts.find(x=>x.id.includes(`gable-${arm}-positive/MH-01/plaster-trim/`));
+  const feet=parts.find(x=>x.id.includes(`/gable-${arm}-bearing-foundation/`));
+  const finish=parts.find(x=>x.id.includes(`/gable-${arm}-bearing-finished-floor/`));
+  const worldAxis=arm==='main'?0:2, end=arm==='main'?p.mainLength:p.wingLength;
+  if(!masonry||!cornice||!feet||!finish){issues.push('missing_gable_exterior_or_footing');continue;}
+  const outerCoord=wall.bounds().max[worldAxis];
+  if(Math.abs(outerCoord-(end+GABLE_DEPTH))>EPS)issues.push('gable_outer_plane_mismatch');
+  if(masonry.bounds().min[worldAxis]<outerCoord-.015)issues.push('decorated_exterior_faces_inward');
+  if(cornice.bounds().min[worldAxis]<outerCoord-.015)issues.push('outer_cornice_faces_inward');
+  // Require the *entire* cross-section of this end-gable to sit on a real
+  // footing (not just matching height with an out-of-footprint floor).
+  const b=finish.bounds(),f=feet.bounds(),spanAxis=worldAxis===0?2:0;
+  if(b.min[spanAxis]>-GABLE_WIDTH/2-EPS || b.max[spanAxis]<GABLE_WIDTH/2+EPS ||
+     f.min[spanAxis]>-GABLE_WIDTH/2-EPS || f.max[spanAxis]<GABLE_WIDTH/2+EPS ||
+     b.min[worldAxis]>end+EPS||b.max[worldAxis]<end+GABLE_DEPTH-EPS ||
+     f.min[worldAxis]>end+EPS||f.max[worldAxis]<end+GABLE_DEPTH-EPS ||
+     Math.abs(b.max[1]-floorTop)>EPS || Math.abs(f.min[1]+.355)>EPS)
+   issues.push('gable_footing_missing_or_unlevel');
+ }
+ // House perimeter plaster and load-bearing piers must touch exactly the
+ // same finished-floor surface; the previous .125 m lower wall gap is invalid.
+ for(const id of ['L-perimeter-plaster-walls','structural-piers']){
+  const shell=parts.find(x=>x.id.includes(`/${id}/`));
+  if(!shell||Math.abs(shell.bounds().min[1]-floorTop)>EPS)issues.push('house_wall_or_pier_floor_gap');
  }
  const normalDelta=Math.abs(roofSlope(roofParams(p),.0001));
  if(normalDelta<=0)issues.push('invalid_valley_cross_slope');
