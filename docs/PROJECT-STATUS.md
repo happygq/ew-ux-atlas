@@ -50,3 +50,7 @@ R1 中用户操作为 Add / Recolor / Remove：同一建造身份的邻居之间
 ## R2-V Stage2 · 三维空域/承托/楼梯候选（G-V1 仍开放）
 
 [独立 Stage2 预览](../g1-m2/r2-vertical-v02/) 与 [技术发现](./R2-V-STAGE2-FINDINGS-v0.1.md) 已建立。新增 V05 支撑候选从 DIRECT 切换为 ONE_BAY_BRIDGE_EW、V06 2×2 未实现楼梯候选、V07 部分遮盖内院仍经相邻空域连接天空；V02 露天→封闭→恢复。原 V01–V04 回归保留。Node22 本地 26/26 通过，源文件逐字节核对。**不代表建筑梁架受力安全、真实开孔、楼梯可通行、屋面建造或正式 Authority 集成。** G-V1 保持 OPEN，R2-A 多层合同未冻结；Stage2 页面尚待用户手机视觉检查。
+
+## EW-UX Typology Atlas · 新一轮研究输入（2026-11-10）
+
+用户提出单房间、水平大房间、多层与通高空间、不同围合院落、室内外楼梯以及多柱/混合承托等布局的系统化补齐需求。已将讨论形成的 **[六类 48 候选类型、12 组组合验证场景](./EW-UX-Spatial-Structural-Typology-Atlas-v0.1-DRAFT.md)** 及 [新窗口交接说明](./TYPOLOGY-ATLAS-HANDOFF.md) 归档。**状态：Working Draft，尚待分类去重、遗漏检查、不变量/依赖及覆盖矩阵评审**；不代表 G-V1 关闭，亦不更改 R1 单层验收与 v0.1/v0.2 冻结设计基线。
