@@ -1,6 +1,6 @@
 # EW-UX · Current status / 项目最新进度
 
-**2026-11-10 R1 收口**：当前工作状态见 [PROJECT-STATUS](./docs/PROJECT-STATUS.md)，逐项关口见 [ACCEPTANCE-GATES](./docs/ACCEPTANCE-GATES.md)，当前进度表归档见 [progress CSV](./docs/progress/EW-UX-Progress-2026-11-10-R1.csv)。[CS–CY–IW–DW R1 预览](./g1-m2/cs-cy-iw-dw-r1/) 是独立研究候选，尚未完成手机视觉与真实孔洞/屋面验收。
+**2026-11-10 R1 收口**：当前工作状态见 [PROJECT-STATUS](./docs/PROJECT-STATUS.md)，逐项关口见 [ACCEPTANCE-GATES](./docs/ACCEPTANCE-GATES.md)，当前进度表归档见 [progress CSV](./docs/progress/EW-UX-Progress-2026-11-10-R1.csv)。[CS–CY–IW–DW R1 预览](./g1-m2/cs-cy-iw-dw-r1/) 已获用户对**单层研究交互与示意视觉**的确认；**二/三层尚未验证**，真实孔洞/屋面和结构承托也未验收。新增 [R2-V / R3-V 多层验证计划](./docs/MULTISTORY-VALIDATION-PLAN-v0.1.md)。
 
 > 以下为原 G1-M1 图鉴的历史 README，保留其原有验收记录与技术边界；新状态不通过覆盖冻结设计文件维护。
 

@@ -1,6 +1,6 @@
 # EW-UX · CS–CY–IW–DW / R1 · Construction & Courtyard Semantics
 
-**Research candidate, not mobile visually accepted.** Separate from WP1.1 Authority, R2.3 integration and existing accepted previews.
+**Owner acceptance update · 2026-11-10:** User inspected the interactive R1 page and explicitly confirmed acceptance. **ACCEPTED ONLY for the single-story research interaction and schematic visualization**; historic 18/18 semantic tests do not verify two/three stories, real wall holes, full roofs/drainage, load paths, true passage or phone GPU performance. This is not Authority integration. The initial deliverable was a candidate before this acceptance; prior test record below remains unchanged. See [current gates](../../docs/ACCEPTANCE-GATES.md).
 
 The user operates only **Add / Recolor / Remove**. Same-identity Add at an occupied neighbor persists an `OPEN` connection; otherwise it creates a `PARTITION`. Recolor never retroactively rewrites stored boundary facts. Remove clears orphan edges. Connected rooms are computed from these persisted facts, not from final color alone.
 

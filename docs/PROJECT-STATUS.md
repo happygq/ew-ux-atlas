@@ -18,13 +18,18 @@
 | G204 T/U v0.3—v0.3.1 | **CANDIDATE** | [v0.3 页面](https://happygq.github.io/ew-ux-atlas/g1-m2/t-u-v03/)；v0.3 既有 63/63；[G205-A README](../g1-m2/layered-streetscape/README.md) 记录 v0.3.1 方向性及 78/78 试验 | T 两端镜像与 U 两翼等级需手机视觉 Gate；v0.3 旧页面不等于 v0.3.1 验收 |
 | G205-A 鳞次栉比街巷 | **CANDIDATE / 视觉问题未解** | [Layered Streetscape](https://happygq.github.io/ew-ux-atlas/g1-m2/layered-streetscape/) 的 A/B/C；用户已指出残余狭缝 | ATTACHED/ALLEY/COURTYARD_GAP 与真实组团可达性 |
 | 世界指南针 / 软性坐北朝南 | **CANDIDATE** | G205-A 独立页面及 compass 测试 | 与真实入口语义的关联、手机视觉 |
-| CS–CY–IW–DW / R1 | **CANDIDATE（已提交）** | [R1 README](../g1-m2/cs-cy-iw-dw-r1/README.md)；记载 18/18 语义拓扑测试；[交互预览](https://happygq.github.io/ew-ux-atlas/g1-m2/cs-cy-iw-dw-r1/) | 手机交互与审美；真实墙洞、连续柱网、完整屋盖/排水和院—室—巷可达 |
-| CS–CY–IW–DW / R2 | **NOT STARTED** | v0.2 设计基线提出联合验证路径 | 真实柱网、木石/白墙连续内立面与实际门窗孔洞 |
+| CS–CY–IW–DW / R1（**单层**） | **ACCEPTED（用户确认；仅单层交互与研究示意）** | [R1 README](../g1-m2/cs-cy-iw-dw-r1/README.md)；记载 18/18 语义拓扑测试；[交互预览](https://happygq.github.io/ew-ux-atlas/g1-m2/cs-cy-iw-dw-r1/) | **二/三层未验证**；真实墙洞、柱网、楼盖/排水和实体通行均未验收 |
+| CS–CY–IW–DW / R2-A | **DESIGN / 尚未冻结** | [多层验证计划](./MULTISTORY-VALIDATION-PLAN-v0.1.md)；与 R2-V 联合定义结构及开口合同 | 多层合同须先通过 G-V1 才能冻结 | 
+| CS–CY–IW–DW / R2-V（**新增**） | **NOT STARTED · 强制前置** | V01–V04：二层/三层、三维天井、支撑和跨层增删回放 | G-V1 未通过；不得外推单层 R1 |
+| CS–CY–IW–DW / R2-B/C | **NOT STARTED** | v0.2 设计基线；R2-A 合同草案 | 真实柱网、木石/白墙连续内立面、门窗孔洞及动态重组 |
 | CS–CY–IW–DW / R3 | **NOT STARTED** | v0.2 设计基线 | 庭院排水、开口通行、巷道网络、屋顶与组团几何 |
-| CS–CY–IW–DW / R4 | **NOT STARTED** | v0.2 设计基线 | 宣纸四色/材质与真机三视角视觉 Gate |
+| CS–CY–IW–DW / R3-V（**新增**） | **NOT STARTED · 强制实体 Gate** | 二/三层楼板、楼梯、承托、真实开口、天井、屋面排水的联合验证 | G-V2 未通过；R2-V 语义不能代替实体证据 |
+| CS–CY–IW–DW / R4 | **NOT STARTED** | v0.2 设计基线与新增 R3-V Gate | 单层、二层、三层各自的材料/性能/三视角真机视觉验收 |
 | 原 UX-G205 高低错层 / G206 / 正式接口 | **OPEN** | 原项目任务表与 v0.2 设计基线 | G205-A 风景试验绝不替代原技术里程碑；需独立集成与性能验证 |
 
 ## R1 真实边界
+
+**2026-11-10 验收更新：** 用户已查看 CS–CY–IW–DW / R1 可交互页面并明确确认“通过验收”。该验收**只覆盖单层建筑的空间语义与研究示意交互**；没有对二层/三层、多层承托、垂直交通、真实门窗孔洞或实体屋顶作任何验证。用户检查的设备类型与设备性能未单独登记，不将本次确认夸大成特定设备的性能测试。单层历史 18/18 语义测试是已有证据，此次仅更新验收记录，没有重复跑测试。
 
 R1 中用户操作为 Add / Recolor / Remove：同一建造身份的邻居之间形成持久 `OPEN` 关系，不同身份形成 `PARTITION`；Recolor 不追溯修改已建边界；Remove 清理无主边。CourtyardRegion 是由真实空单元泛洪与围合关系推导，而非手工放置的庭院物件。已有 16 次 Add 围合九格院落、Remove 转为开放庭院候选、双院等语义回放证据。
 
@@ -34,5 +39,6 @@ R1 中用户操作为 Add / Recolor / Remove：同一建造身份的邻居之间
 
 1. 已冻结 v0.1/v0.2、既有历史预览与验收记录保持原样；只新增状态/关口/进度索引及 README 入口。
 2. 以 [Acceptance Gates](./ACCEPTANCE-GATES.md) 为唯一当前验收状态清单，以 [进度归档](./progress/README.md) 的 CSV 快照记录当期工作项；保持可审计、可差异比较。
-3. 下一技术阶段应首先定义并实现 **R2：连续院内木构/石基/局部白墙 + 真实可穿透门窗洞口的共同几何**。禁止以材料贴片、假窗、平面拓扑测试代替真实空间几何验收。
-4. 在 R2 开发前，先查看 R1 真机交互/美学效果；若发现问题，按最小影响范围补丁修复，而非重审冻结设计。
+3. **R1 单层研究范围已经用户验收。** 不以此推断二/三层；R1 原始语义和既有页面不重开。
+4. **先 R2-A 合同草案 + R2-V（G-V1）二/三层语义回放；通过 G-V1 后才冻结多层适用的 R2-A 合同**，再做 R2-B/C 的真实门窗、木构、石脚与动态重组。
+5. **R3 加入 R3-V（G-V2）**，验收二/三层真实楼板、楼梯、支撑、天井、门窗、屋盖与排水；R4 对三种楼层高度分别做视觉 Gate。详细计划见 [MULTISTORY-VALIDATION-PLAN](./MULTISTORY-VALIDATION-PLAN-v0.1.md)。
