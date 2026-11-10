@@ -10,7 +10,7 @@
 | G-04 · G205-A 街巷层叠 | 三排以上有效纵深、真实共墙/巷道/庭院，无不可用残余窄缝 | **OPEN / 用户发现缺陷** | [街巷实验](https://happygq.github.io/ew-ux-atlas/g1-m2/layered-streetscape/)；修复空间关系并做操作回放 |
 | G-05 · CS R1 单层交互 | Add/Recolor/Remove 与持久邻接边的**单层研究级**回放 | **ACCEPTED（用户确认；仅单层）** | [R1 预览](https://happygq.github.io/ew-ux-atlas/g1-m2/cs-cy-iw-dw-r1/)；[README](../g1-m2/cs-cy-iw-dw-r1/README.md) 记载历史 18/18；多层与实体几何未验证 |
 | G-06 · CY R1 单层庭院 | 16-Add/9-cell、Remove 开环、双院的**单层拓扑与示意视觉** | **ACCEPTED（用户确认；仅单层语义示意）** | 天空的三维贯通、真实门洞、跨层庭院和实体通行仍未证明 |
-| G-V1 · R2-V 多层语义（**新增强制 Gate**） | V01 二层住宅、V02 二层贯通天井、V03 三层错退、V04 跨层 Add/Recolor/Remove；支持链、三维庭院、独立竖向通行、重播确定性与负例 | **NOT STARTED** | 先与 R2-A 联合提出最小合同，再用 V01–V04 实际验证；**G-V1 通过前不能冻结多层适用的 R2-A 合同**；[专项计划](./MULTISTORY-VALIDATION-PLAN-v0.1.md) |
+| G-V1 · R2-V 多层语义（**新增强制 Gate**） | V01 二层住宅、V02 二层贯通天井、V03 三层错退、V04 跨层 Add/Recolor/Remove；支持链、三维庭院、独立竖向通行、重播确定性与负例 | **OPEN / CANDIDATE（局部语义测试已跑）** | [R2-V 原型](../g1-m2/r2-vertical-v01/README.md) 本地 Node 22.16.0 12/12；四组回放。**三维真实空域、正向竖向通行和独立审查仍缺失；合同不可冻结** |
 | G-07 · IW–DW R2 | 院向真实连续柱网、木石/白墙合理分配、**实际门窗孔洞**与墙体几何一致 | **NOT STARTED** | 按 [DW Gate](./EW-UX-Adaptive-Doors-Windows-Research-Gate-v0.1.md) 和 v0.2 基线实现；真实窗洞/槛/过梁不能只靠贴面 |
 | G-08 · R3 空间几何 | 庭院排水、院—室—巷真实可达性、连续屋盖/墙脚、L/T/U/高低差几何合法 | **NOT STARTED** | R2 通过后开展联合几何验证 |
 | G-V2 · R3-V 多层真实几何（**新增强制 Gate**） | 二/三层楼板、楼梯、承托、真实门窗与天井、屋盖、谷线、排水、路径与碰撞检查 | **NOT STARTED** | R2-V 与 R2-B/C 通过相关准入后实施；几何/路径测试**不等于**建筑工程结构安全认证 |

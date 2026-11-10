@@ -19,8 +19,8 @@
 | G205-A 鳞次栉比街巷 | **CANDIDATE / 视觉问题未解** | [Layered Streetscape](https://happygq.github.io/ew-ux-atlas/g1-m2/layered-streetscape/) 的 A/B/C；用户已指出残余狭缝 | ATTACHED/ALLEY/COURTYARD_GAP 与真实组团可达性 |
 | 世界指南针 / 软性坐北朝南 | **CANDIDATE** | G205-A 独立页面及 compass 测试 | 与真实入口语义的关联、手机视觉 |
 | CS–CY–IW–DW / R1（**单层**） | **ACCEPTED（用户确认；仅单层交互与研究示意）** | [R1 README](../g1-m2/cs-cy-iw-dw-r1/README.md)；记载 18/18 语义拓扑测试；[交互预览](https://happygq.github.io/ew-ux-atlas/g1-m2/cs-cy-iw-dw-r1/) | **二/三层未验证**；真实墙洞、柱网、楼盖/排水和实体通行均未验收 |
-| CS–CY–IW–DW / R2-A | **DESIGN / 尚未冻结** | [多层验证计划](./MULTISTORY-VALIDATION-PLAN-v0.1.md)；与 R2-V 联合定义结构及开口合同 | 多层合同须先通过 G-V1 才能冻结 | 
-| CS–CY–IW–DW / R2-V（**新增**） | **NOT STARTED · 强制前置** | V01–V04：二层/三层、三维天井、支撑和跨层增删回放 | G-V1 未通过；不得外推单层 R1 |
+| CS–CY–IW–DW / R2-A | **CANDIDATE / 合同尚未冻结** | [多层验证计划](./MULTISTORY-VALIDATION-PLAN-v0.1.md)；与 R2-V 联合定义结构及开口合同 | 多层合同须先通过 G-V1 才能冻结 | 
+| CS–CY–IW–DW / R2-V（**新增**） | **CANDIDATE · G-V1 仍开放** | [隔离原型](../g1-m2/r2-vertical-v01/README.md)：V01–V04 + Node 22 本地 12/12；持久边、基本承托与上层遮盖代理 | 真正三维 VoidRegion、正向竖向通行、独立技术审查未完成；不得外推 R1 |
 | CS–CY–IW–DW / R2-B/C | **NOT STARTED** | v0.2 设计基线；R2-A 合同草案 | 真实柱网、木石/白墙连续内立面、门窗孔洞及动态重组 |
 | CS–CY–IW–DW / R3 | **NOT STARTED** | v0.2 设计基线 | 庭院排水、开口通行、巷道网络、屋顶与组团几何 |
 | CS–CY–IW–DW / R3-V（**新增**） | **NOT STARTED · 强制实体 Gate** | 二/三层楼板、楼梯、承托、真实开口、天井、屋面排水的联合验证 | G-V2 未通过；R2-V 语义不能代替实体证据 |
@@ -42,3 +42,7 @@ R1 中用户操作为 Add / Recolor / Remove：同一建造身份的邻居之间
 3. **R1 单层研究范围已经用户验收。** 不以此推断二/三层；R1 原始语义和既有页面不重开。
 4. **先 R2-A 合同草案 + R2-V（G-V1）二/三层语义回放；通过 G-V1 后才冻结多层适用的 R2-A 合同**，再做 R2-B/C 的真实门窗、木构、石脚与动态重组。
 5. **R3 加入 R3-V（G-V2）**，验收二/三层真实楼板、楼梯、支撑、天井、门窗、屋盖与排水；R4 对三种楼层高度分别做视觉 Gate。详细计划见 [MULTISTORY-VALIDATION-PLAN](./MULTISTORY-VALIDATION-PLAN-v0.1.md)。
+
+## R2-A / R2-V 最新候选（不改变已验收 R1）
+
+[多层合同草案](./R2-A-GEOMETRY-OPENING-CONTRACT-candidate-v0.1.md)和[独立测试/三层语义预览](../g1-m2/r2-vertical-v01/README.md)已建立。初步 Node 22.16.0 定向测试 12/12 通过；**G-V1 不关闭**，下一步补真实三维空域、楼梯/楼板开口的正反例和独立审查。视觉展示只为楼层占用网格，不代表任何建筑实体或工程安全。原 R2-V 决议 CSV 保持历史快照不变；最新状态见 [新的进度归档](./progress/README.md)。

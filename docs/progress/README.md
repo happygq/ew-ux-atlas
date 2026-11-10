@@ -2,7 +2,8 @@
 
 本目录是**独立 UX 研究分支**的可版本化进度表归档，不包含正式 WP1.1 任务。
 
-- **最新：** [2026-11-10 · R1 单层验收 + R2-V/R3-V 决议进度快照 CSV](./EW-UX-Progress-2026-11-10-R2V-Decision.csv)：保留旧快照不变，新增强制多层工作包与验收范围。
+- **最新候选：** [R2-A / R2-V 语义原型阶段进度](./EW-UX-Progress-2026-11-10-R2V-Candidate.csv)：12/12 定向语义测试，G-V1 仍开放；原历史快照不修改。
+- **此前决议：** [2026-11-10 · R1 单层验收 + R2-V/R3-V 决议进度快照 CSV](./EW-UX-Progress-2026-11-10-R2V-Decision.csv)：保留旧快照不变，新增强制多层工作包与验收范围。
 - [2026-11-10 · R1 初始收口历史 CSV](./EW-UX-Progress-2026-11-10-R1.csv)：16 项历史条目，**不是最新验收状态**，只供差异追溯。
 - [项目当前状态](../PROJECT-STATUS.md)：以语义范围和验收证据说明整体里程碑。
 - [当前验收关口](../ACCEPTANCE-GATES.md)：逐项声明 ACCEPTED / CANDIDATE / OPEN / NOT STARTED。
