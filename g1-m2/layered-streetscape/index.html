@@ -3,16 +3,50 @@
 <title>EW-UX · G205-A 多排马头墙层叠研究</title>
 <style>
 :root{font-family:system-ui,-apple-system,"Microsoft YaHei",sans-serif;--ink:#293f33;--paper:#f2ede4;--green:#244b3d;--line:#d7cbb8}*{box-sizing:border-box}html,body{margin:0;background:var(--paper);color:var(--ink)}button,select,input{font:inherit}button,select{cursor:pointer}header{background:#1c342b;color:#f8f1e6;padding:20px clamp(16px,4vw,52px);display:flex;align-items:center;justify-content:space-between;gap:16px}.brand{font:700 25px Georgia,serif;letter-spacing:.06em}.brand span{font-weight:400;color:#cbb89f}header a{font-size:12px;color:#d8e2d6;text-decoration:none;border-bottom:1px solid #769184}main{max-width:1440px;padding:26px clamp(12px,3vw,36px) 40px;margin:auto}.kicker{font-size:11px;letter-spacing:.20em;color:#a0805d;font-weight:700}.intro{display:flex;justify-content:space-between;gap:16px;align-items:start}.intro h1{font:400 clamp(24px,3vw,39px) Georgia,"Songti SC",serif;margin:10px 0}.intro p{font-size:13px;color:#776b5f;line-height:1.8;max-width:790px;margin:0 0 19px}.gate{font-size:11px;color:#845e3b;background:#f9f0e3;border:1px solid #cbb79d;border-radius:40px;padding:10px 16px;text-align:center;white-space:nowrap}.modes{display:flex;flex-wrap:wrap;gap:9px;margin:0 0 14px}.mode{background:#fffaf0;border:1px solid #cbbda8;color:#3c5145;padding:11px 16px;border-radius:7px;font-size:13px}.mode.active{background:var(--green);color:#fff;border-color:var(--green)}.layout{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:15px}.viewport{border:1px solid var(--line);background:radial-gradient(ellipse at 45% 30%,#fdf9f0,#e7daca 75%,#d5c7b5);border-radius:12px;height:min(64vw,670px);min-height:470px;position:relative;overflow:hidden}#canvas,#fallback{position:absolute;inset:0;width:100%;height:100%;display:block}#canvas{z-index:2;touch-action:none;cursor:grab}#fallback{z-index:1;object-fit:contain;pointer-events:none}.viewport.running #fallback{display:none}.top{position:absolute;top:17px;left:18px;max-width:68%;z-index:4;pointer-events:none;text-shadow:0 1px 7px #fffaf3}.top small{letter-spacing:.13em;color:#a48056}.top h2{font:400 clamp(18px,2.5vw,29px) Georgia,"Songti SC",serif;margin:8px 0 5px}.top p{font-size:11px;color:#756c62;line-height:1.55}.renderer{z-index:4;position:absolute;right:14px;top:13px;font-size:11px;border-radius:32px;border:1px solid #b6c2af;background:#f4f7efdf;padding:8px 12px;max-width:125px;text-align:center}.toolbar{position:absolute;bottom:12px;left:12px;right:12px;z-index:5;display:flex;flex-wrap:wrap;gap:6px}.toolbar button{background:#fcf9f2ee;border:1px solid #b9af9e;color:#344d3f;border-radius:6px;font-size:11px;padding:9px 11px}.toolbar button.active{background:var(--green);border-color:var(--green);color:#fff}.status{position:absolute;bottom:68px;left:15px;right:15px;z-index:5;background:#fff4dfd9;border-left:3px solid #c1935d;padding:10px 12px;font-size:11px;max-width:460px}.status[hidden]{display:none}.panel{background:#fcf9f2;border:1px solid var(--line);border-radius:11px;padding:19px 20px}.eyebrow{letter-spacing:.15em;font-size:10px;color:#70917c;font-weight:700}.panel h3{font:400 21px Georgia,"Songti SC",serif;margin:8px 0}.panel p,.panel li{font-size:11px;line-height:1.8;color:#6d685c}.panel label{display:flex;justify-content:space-between;margin:13px 0 6px;font-size:12px}.panel input[type=range]{width:100%;accent-color:#326a54}.metric{display:flex;justify-content:space-between;gap:10px;border-top:1px solid #e4d9c9;padding:10px 0;color:#66685b;font-size:11px}.metric strong{font:500 15px Georgia,serif;color:#284939}.section{margin:19px 0 10px;border-top:1px solid #e4d9c9;padding-top:13px}.notice{border-left:3px solid #c3a27b;background:#f3eadb;padding:11px 12px;font-size:11px;color:#766752;line-height:1.65}.previews{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:22px}.preview{border:1px solid var(--line);border-radius:9px;overflow:hidden;background:#fffcf5;cursor:pointer;text-align:left;padding:0;color:var(--ink)}.preview-thumb{display:block;background:#eee4d4;padding:18px;color:#927c60;text-align:center;font-size:20px;letter-spacing:.26em}.preview>div{padding:11px 13px;font-size:12px}.preview strong{display:block;margin-bottom:4px}.preview small{color:#766a5e}.footer{padding-top:15px;border-top:1px solid #dacdbb;margin-top:21px;display:flex;justify-content:space-between;gap:10px;font-size:11px;color:#766c60}.footer a{color:#386453}@media(max-width:900px){.layout{grid-template-columns:1fr}.viewport{height:60vh;min-height:430px;max-height:610px}.panel{margin-top:0}.previews{grid-template-columns:1fr 1fr}.intro h1{font-size:28px}.gate{white-space:normal}.top h2{font-size:22px}.toolbar button{padding:8px 9px}}@media(max-width:530px){.previews{grid-template-columns:1fr}.intro{align-items:start}.intro .gate{font-size:10px;padding:7px}.viewport{height:62vh;min-height:455px}.top{top:13px;left:12px}.top h2{font-size:21px}.renderer{top:10px;right:10px;max-width:99px;font-size:9px}.toolbar{bottom:9px;left:9px}.toolbar button{padding:7px 8px;font-size:10px}}
+/* World-anchored research compass; independent of camera-only rotations. */
+.world-compass{position:absolute;right:12px;top:64px;z-index:6;min-width:116px;max-width:126px;padding:7px 7px 9px;border-radius:11px;border:1px solid #bdc6b7;background:#fffaf0e8;box-shadow:0 4px 15px #26352d22;text-align:center;pointer-events:none}
+.world-compass svg{display:block;width:96px;height:96px;margin:0 auto}
+.compass-note{font-size:9px;line-height:1.45;color:#42594a}
+.compass-heading{font-size:10px;color:#303d32;font-weight:600}
+.orientation-controls select,.orientation-controls input[type=range]{display:block;width:100%;margin-top:6px;accent-color:#526d56}
+.orientation-controls select{padding:8px;border:1px solid #cbbda8;border-radius:6px;background:#fffdf9;color:#294338}
+.orientation-controls .hint{font-size:11px;line-height:1.6;color:#6d685c;margin-top:8px}
+@media(max-width:530px){.world-compass{right:7px;top:53px;max-width:109px;min-width:104px;padding:4px}.world-compass svg{width:84px;height:84px}.compass-heading{font-size:9px}.compass-note{font-size:8px}}
 </style></head><body>
 <header><div class="brand">EW <span>/ ARCHITECTURAL RESEARCH</span></div><a href="../t-u-v03/">返回 G204 v0.3</a></header>
 <main><div class="intro"><div><div class="kicker">G205-A · LAYERED GABLE STREETSCAPE · EXPERIMENT 01</div><h1>马头墙的鳞次栉比 · 多排组团试验</h1><p>研究目标不是复制一张照片，而是以真实屋体、屋脊、马头墙、墙脚为基础，验证三层纵深、主次高度与遮挡节奏。三种构图全部来自确定性参数化三角网格；尚未通过整体审美验收。</p></div><div class="gate">研究候选<br>待视觉验收</div></div>
 <div class="modes"><button class="mode active" data-mode="BALANCED">A · 均衡层叠</button><button class="mode" data-mode="HERO">B · 主墙突出</button><button class="mode" data-mode="DENSE">C · 密集鳞次</button><button class="mode" data-mode="T_FIX">T · 左右端墙复核</button><button class="mode" data-mode="U_FIX">U · 开口两翼复核</button></div>
-<div class="layout"><section class="viewport" id="stage"><img id="fallback" src="./preview-balanced-street.png" alt="A 组团基准视角的实际三角网格静态回退"><canvas id="canvas" aria-label="三维建筑组团交互预览"></canvas><div class="top"><small id="study">STUDY / A — 01</small><h2 id="title">均衡层叠 · 三排屋体</h2><p id="subtitle">前景引导 / 中景主墙 / 后景呼应</p></div><div class="renderer" id="renderer">◌ 初始化</div><div class="status" id="status" hidden></div><div class="toolbar"><button id="oblique" class="active">斜视参考</button><button id="street">低视街巷</button><button id="elevated">俯视布局</button><button id="front">仅前排</button><button id="middle">仅中排</button><button id="back">仅后排</button><button id="all">三排全部</button><button id="reset">重置视角</button><button id="save">截图 PNG</button></div></section>
+<div class="layout"><section class="viewport" id="stage"><img id="fallback" src="./preview-balanced-street.png" alt="A 组团基准视角的实际三角网格静态回退"><canvas id="canvas" aria-label="三维建筑组团交互预览"></canvas><div class="world-compass" id="worldCompass" aria-label="虚拟世界大地指南针，+Z 为北，+X 为东；随相机绕转更新">
+<svg viewBox="-56 -56 112 112" aria-hidden="true">
+<circle r="51" fill="#fffdf7" stroke="#c4bba8" stroke-width="1.6"/>
+<circle r="39" fill="none" stroke="#dfd6c8" stroke-width=".8" stroke-dasharray="2 3"/>
+<line x1="-8" x2="8" y1="0" y2="0" stroke="#acb6ab" stroke-width="1"/>
+<line x1="0" x2="0" y1="-8" y2="8" stroke="#acb6ab" stroke-width="1"/>
+<circle id="preferredPoint" cx="0" cy="-37" r="4.8" fill="#a7793f" stroke="#fff" stroke-width="1.5"/>
+<g font-family="system-ui,sans-serif" font-size="13" font-weight="700" text-anchor="middle" dominant-baseline="middle">
+<text id="compassN" x="0" y="38" fill="#ad493e">N</text>
+<text id="compassE" x="38" y="0" fill="#455c55">E</text>
+<text id="compassS" x="0" y="-38" fill="#455c55">S</text>
+<text id="compassW" x="-38" y="0" fill="#455c55">W</text>
+</g><circle r="2.4" fill="#304639"/></svg>
+<div class="compass-heading" id="cameraHeading">观察朝向 —</div>
+<div class="compass-note">世界北 +Z · 非磁北</div></div><div class="top"><small id="study">STUDY / A — 01</small><h2 id="title">均衡层叠 · 三排屋体</h2><p id="subtitle">前景引导 / 中景主墙 / 后景呼应</p></div><div class="renderer" id="renderer">◌ 初始化</div><div class="status" id="status" hidden></div><div class="toolbar"><button id="oblique" class="active">斜视参考</button><button id="street">低视街巷</button><button id="elevated">俯视布局</button><button id="front">仅前排</button><button id="middle">仅中排</button><button id="back">仅后排</button><button id="all">三排全部</button><button id="reset">重置视角</button><button id="save">截图 PNG</button></div></section>
 <aside class="panel"><div class="eyebrow">DETERMINISTIC / COMPOSITION GRAMMAR</div><h3>组团与遮挡控制</h3><p>改变排间纵深、错动幅度和主次高差，观察轮廓是否仍保持节奏。若设备不支持实时 WebGL2，则显示默认状态的真实网格静态画面。</p>
 <label for="gap">排间距离 <output id="gapOut">1.00</output></label><input id="gap" type="range" min="0.85" max="1.25" step="0.05" value="1.00">
 <label for="stagger">横向错动 <output id="staggerOut">1.00</output></label><input id="stagger" type="range" min="0" max="1.50" step="0.10" value="1.00">
 <label for="contrast">主次高差 <output id="contrastOut">1.00</output></label><input id="contrast" type="range" min="0" max="1.20" step="0.10" value="1.00">
-<div class="section eyebrow">GEOMETRY MONITOR</div><div class="metric"><span>构图</span><strong id="sceneName">A · 均衡层叠</strong></div><div class="metric"><span>建筑数</span><strong id="count">—</strong></div><div class="metric"><span>纵深层</span><strong id="rows">—</strong></div><div class="metric"><span>轮廓变体</span><strong id="profiles">—</strong></div><div class="metric"><span>三角面</span><strong id="triangles">—</strong></div><div class="metric"><span>契约</span><strong id="contract">初始化</strong></div>
+<div class="section eyebrow">WORLD ORIENTATION / 建筑朝向</div>
+<div class="orientation-controls">
+<p>默认规划原则：<strong>坐北朝南</strong>（建筑面向正南）。正南和东南优先，西南可选；传统徽州建筑也存在其他朝向。棕色标记为规划偏好，绝非入口方向的实测判定。</p>
+<label for="facingSelect">朝向参考</label><select id="facingSelect" aria-label="建筑朝向参考">
+<option value="180" selected>坐北朝南 · 正南 180°</option>
+<option value="135">偏东南 · 135°</option>
+<option value="225">偏西南 · 225°</option>
+<option value="custom">其他方向 · 自由调整</option></select>
+<div id="customBearingRow" hidden><label for="customBearing">自定义朝向 <output id="customBearingOut">180°</output></label><input type="range" id="customBearing" min="0" max="359" step="1" value="180"></div>
+<div class="hint" id="orientationFeedback">当前建议：正南 180°（仅提示，不强制）。</div>
+<div class="hint">指南针的北向绑定世界 +Z，并随相机旋转更新。此控件不改变建筑几何、Add / Remove 结果或现有房屋的入口。</div>
+</div><div class="section eyebrow">GEOMETRY MONITOR</div><div class="metric"><span>构图</span><strong id="sceneName">A · 均衡层叠</strong></div><div class="metric"><span>建筑数</span><strong id="count">—</strong></div><div class="metric"><span>纵深层</span><strong id="rows">—</strong></div><div class="metric"><span>轮廓变体</span><strong id="profiles">—</strong></div><div class="metric"><span>三角面</span><strong id="triangles">—</strong></div><div class="metric"><span>契约</span><strong id="contract">初始化</strong></div>
 <div class="section eyebrow">VISUAL REVIEW</div><ol><li>在斜视与低视角仍可读出三层纵深，而非平铺模型。</li><li>前、中、后排有不同高度、进深与遮挡比例。</li><li>墙体为真实建筑山墙，不是悬空的舞台道具。</li><li>马头墙有对称、半扇与镜像变体；素白墙为默认。</li><li>T 两端应严格镜像；U 开口双翼应低于主山墙的视觉等级。</li></ol><div class="notice">本试验不代表真实徽州古村落复原，也未模拟防火间距、历史营造尺寸、地形与真实排水。室内连续墙面仍留待 G2/G3。</div></aside></div>
 <div class="previews"><button class="preview" data-mode="BALANCED"><span class="preview-thumb" aria-label="均衡层叠">▰ ▰ ▰</span><div><strong>A · 均衡层叠</strong><small>三排七栋，中景略高</small></div></button><button class="preview" data-mode="HERO"><span class="preview-thumb" aria-label="主墙突出">▰ ▰ ▰</span><div><strong>B · 主墙突出</strong><small>两面中景主墙作为焦点</small></div></button><button class="preview" data-mode="DENSE"><span class="preview-thumb" aria-label="密集鳞次">▰ ▰ ▰</span><div><strong>C · 密集鳞次</strong><small>三排十栋，加强遮挡</small></div></button></div>
 <div class="footer"><span>EW-UX 独立研究 · 不改动 G203 / G204 既有预览与 WP1.1 Authority</span><a href="../t-u-v03/">返回 G204</a></div></main>
@@ -20,11 +54,36 @@
 import {Renderer} from './src/webgl.js';
 import {buildStreetscape} from './src/streetscape.js';
 import {buildTU} from './src/t-u-roof.js';
+import {compassAtYaw} from './src/compass.js';
 const $=id=>document.getElementById(id);let mode='BALANCED',view='oblique',rows='all',model=null,renderer=null,lastFrame=0,viewStatic=false;
 const streetMode=()=>['BALANCED','HERO','DENSE'].includes(mode);
 const titles={BALANCED:['均衡层叠 · 三排屋体','前景引导 / 中景主墙 / 后景呼应'],HERO:['主墙突出 · 中景主角','两面高墙作为视觉焦点'],DENSE:['密集鳞次 · 村落片段','十栋屋体 / 受控横向错动'],T_FIX:['T 形端墙 · 世界轴镜像','同一主翼两端，完整的镜像轮廓'],U_FIX:['U 形庭院 · 两翼降级','开口双翼低一级，主端墙保持完整']};
 const asset=()=>"./preview-balanced-street.png";
 const status=x=>{$('status').hidden=!x;$('status').textContent=x||''};
+// World-reference compass: camera bearing and chosen planning preference are independent.
+let chosenFacing=180,lastCompassYaw=NaN,lastCompassFacing=NaN;
+function paintCompass(){
+ const yaw=renderer?renderer.yaw:2.40;
+ if(yaw===lastCompassYaw&&chosenFacing===lastCompassFacing)return;
+ const d=compassAtYaw(yaw,chosenFacing,37);
+ for(const p of d.labels){const el=$('compass'+p.key);el.setAttribute('x',p.x);el.setAttribute('y',p.y);}
+ const point=$('preferredPoint');point.setAttribute('cx',d.preferred.x);point.setAttribute('cy',d.preferred.y);
+ $('cameraHeading').textContent='观察朝向 '+Math.round(d.heading)+'°';
+ lastCompassYaw=yaw;lastCompassFacing=chosenFacing;
+}
+$('facingSelect').onchange=()=>{
+ const sel=$('facingSelect').value;const custom=sel==='custom';
+ $('customBearingRow').hidden=!custom;
+ chosenFacing=custom?Number($('customBearing').value):Number(sel);
+ $('orientationFeedback').textContent='当前规划朝向 '+chosenFacing+'° · 不改变建造结果';
+ paintCompass();
+};
+$('customBearing').oninput=()=>{
+ chosenFacing=Number($('customBearing').value);
+ $('customBearingOut').textContent=chosenFacing+'°';
+ $('orientationFeedback').textContent='自由规划朝向 '+chosenFacing+'° · 不改变建造结果';
+ paintCompass();
+};
 try{renderer=new Renderer($('canvas'));renderer.shared.platform.positions=[];renderer.shared.top.positions=[];renderer.shared.shadows.forEach(mesh=>{mesh.positions.length=0;mesh.normals.length=0;mesh.count=0;});$('renderer').textContent='WebGL2 · 实时几何'}catch(e){renderer=null;$('renderer').textContent='静态网格回退';status('当前环境未启用 WebGL2。构图按钮仍可切换默认渲染图；动态参数需要支持 WebGL2 的浏览器。')}
 function getControls(){return {composition:mode,depthGap:Number($('gap').value),stagger:Number($('stagger').value),heightContrast:Number($('contrast').value)}}
 function camera(){if(!renderer)return; if(streetMode()){
@@ -65,5 +124,5 @@ for(const id of ['front','middle','back','all'])$(id).onclick=()=>{if(!streetMod
 for(const id of ['gap','stagger','contrast'])$(id).addEventListener('change',()=>{rows='all';showScene()});
 $('reset').onclick=()=>{rows='all';camera();showScene({newScene:false})};
 $('save').onclick=()=>{if(renderer){try{const a=document.createElement('a');a.href=$('canvas').toDataURL('image/png');a.download=`EW-UX-G205A-${mode}.png`;a.click();return}catch(e){}}window.open(asset(),'_blank')};
-showScene();function loop(ms){if(renderer&&ms-lastFrame>130){try{renderer.render();lastFrame=ms}catch(e){console.error(e);renderer=null;$('stage').classList.remove('running');$('canvas').style.display='none';$('renderer').textContent='静态网格回退';status('实时画面已切换为静态预览：'+e.message)}}requestAnimationFrame(loop)}requestAnimationFrame(loop);
+showScene();function loop(ms){paintCompass();if(renderer&&ms-lastFrame>130){try{renderer.render();lastFrame=ms}catch(e){console.error(e);renderer=null;$('stage').classList.remove('running');$('canvas').style.display='none';$('renderer').textContent='静态网格回退';status('实时画面已切换为静态预览：'+e.message)}}requestAnimationFrame(loop)}requestAnimationFrame(loop);
 </script></body></html>
