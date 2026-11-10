@@ -1,19 +1,37 @@
 <!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>EW-UX · R2-V 多层语义研究</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:#f3efe7;color:#294339;font:14px system-ui,"Microsoft YaHei",sans-serif}header{background:#1e382e;color:#fbf5e9;padding:17px 3vw;font:600 22px Georgia,serif}main{max-width:1120px;margin:auto;padding:24px 14px}h1{font:400 clamp(26px,4vw,37px) Georgia,"Songti SC",serif;margin:12px 0}p{line-height:1.8;color:#6c736c}.ribbon{font-size:11px;letter-spacing:.12em;color:#9c6f46;font-weight:700}.controls{display:flex;align-items:center;flex-wrap:wrap;gap:10px;background:#fffaf2;border:1px solid #dbd1c1;border-radius:12px;padding:13px;margin:18px 0}button,select{border:1px solid #cfc2b2;border-radius:8px;background:#fffaf2;color:#244a3b;padding:10px;font:inherit;cursor:pointer}button:disabled{opacity:.4}input{accent-color:#315a47}#step{min-width:90px}.card{border:1px solid #d9cfbd;background:#fffcf5;border-radius:12px;padding:15px;min-width:0}.floors{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.floors h2{font-size:15px}.squares{display:grid;grid-template-columns:repeat(11,minmax(0,1fr));gap:1px;background:#d5cab9;aspect-ratio:1}.square{aspect-ratio:1;background:#f9f6ed;position:relative}.square span{font-size:9px;position:absolute;left:2px;top:1px}.square.court{background:#c9e0d3;outline:1px solid #4c8979;outline-offset:-2px}.square.blocked{background:#d9b88e}.stats{display:flex;flex-wrap:wrap;gap:10px;margin:13px 0}.stats div{padding:10px 16px;background:#e2e8dd;border-radius:8px}.note{margin-top:15px;background:#fff7e8;border:1px solid #e3d0b5;padding:14px;border-radius:9px;font-size:12px;overflow-wrap:anywhere}a{color:#315a47}footer{margin-top:17px;font-size:12px}@media(max-width:760px){.floors{grid-template-columns:1fr}.squares{max-width:430px}}
+*{box-sizing:border-box}body{margin:0;background:#f3efe7;color:#294339;font:14px system-ui,"Microsoft YaHei",sans-serif}header{background:#1e382e;color:#fbf5e9;padding:17px 3vw;font:600 22px Georgia,serif}main{max-width:1120px;margin:auto;padding:24px 14px}h1{font:400 clamp(26px,4vw,37px) Georgia,"Songti SC",serif;margin:12px 0}p{line-height:1.8;color:#6c736c}.ribbon{font-size:11px;letter-spacing:.12em;color:#9c6f46;font-weight:700}.controls{display:flex;align-items:center;flex-wrap:wrap;gap:10px;background:#fffaf2;border:1px solid #dbd1c1;border-radius:12px;padding:13px;margin:18px 0}button,select{border:1px solid #cfc2b2;border-radius:8px;background:#fffaf2;color:#244a3b;padding:10px;font:inherit;cursor:pointer}button:disabled{opacity:.4}input{accent-color:#315a47}#step{min-width:90px}.card{border:1px solid #d9cfbd;background:#fffcf5;border-radius:12px;padding:15px;min-width:0}.floors{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.floors h2{font-size:15px}.squares{display:grid;grid-template-columns:repeat(11,minmax(0,1fr));gap:1px;background:#d5cab9;aspect-ratio:1}.square{aspect-ratio:1;background:#f9f6ed;position:relative}.square span{font-size:9px;position:absolute;left:2px;top:1px}.square.court{background:#c9e0d3;outline:1px solid #4c8979;outline-offset:-2px}.square.blocked{background:#d9b88e}.stats{display:flex;flex-wrap:wrap;gap:10px;margin:13px 0}.stats div{padding:10px 16px;background:#e2e8dd;border-radius:8px}.note{margin-top:15px;background:#fff7e8;border:1px solid #e3d0b5;padding:14px;border-radius:9px;font-size:12px;overflow-wrap:anywhere}.guide{border:1px solid #d1c2ae;background:#fffdf7;border-left:5px solid #4c7763;border-radius:10px;padding:16px 18px;margin:0 0 16px}.guide.rejected{border-left-color:#ad5838;background:#fff4ea}.guide-top{display:flex;align-items:center;justify-content:space-between;gap:12px}.guide-kicker{font-size:11px;letter-spacing:.08em;font-weight:700;color:#8b724f}.guide-result{font-size:12px;font-weight:700;color:#315f49}.guide.rejected .guide-result{color:#9e4529}.guide h2{margin:9px 0 5px;font-size:20px}.guide p{margin:5px 0;line-height:1.65;color:#4d5b53}.guide .principle{color:#766c5c;font-size:12px;margin-top:9px}.timeline{display:flex;flex-wrap:wrap;gap:6px;margin:-3px 0 16px}.timeline[hidden]{display:none}.timeline button{font-size:12px;padding:7px 10px;min-width:37px}.timeline button.active{background:#244a3b;color:#fff;border-color:#244a3b}.timeline button.reject{border-color:#b57255}.timeline button.active.reject{background:#ad5838;border-color:#ad5838}.square.focus-applied{outline:3px solid #39795f;outline-offset:-2px;z-index:2}.square.focus-rejected{outline:3px solid #b25432;outline-offset:-2px;z-index:2}.square.focus-rejected::after{content:'×';position:absolute;right:2px;bottom:0;font-weight:800;color:#a14c2e;font-size:15px;line-height:1}a{color:#315a47}footer{margin-top:17px;font-size:12px}@media(max-width:760px){.floors{grid-template-columns:1fr}.squares{max-width:430px}}
 </style></head><body><header>EW / EXPANDABLE WORLDS</header><main><div class="ribbon">R2-A / R2-V · VERTICAL SEMANTICS · CANDIDATE</div><h1>从单层，走向二层与三层</h1><p>这是占用与空间关系的多层语义验证，并非真实三维建筑。上层接触不代表楼梯可通行；黄色方格仅代表庭院上方存在被占用的遮盖代理，不等于已完成的屋顶、楼板或梁架。</p>
-<div class="controls"><select id="scene"></select><button id="prev">◀ 上一步</button><input id="stepRange" type="range" min="0" max="1" value="0"><button id="next">下一步 ▶</button><strong id="step"></strong></div><div class="stats" id="stats"></div><div class="floors" id="floors"></div><div class="note" id="note"></div><footer>G-V1 仍开放 · <a href="../../docs/R2-A-GEOMETRY-OPENING-CONTRACT-candidate-v0.1.md">合同草案</a> · <a href="../cs-cy-iw-dw-r1/">已验收的单层 R1</a></footer></main>
+<div class="controls"><select id="scene"></select><button id="prev">◀ 上一步</button><input id="stepRange" type="range" min="0" max="1" value="0"><button id="next">下一步 ▶</button><strong id="step"></strong></div><section class="guide" id="guide" aria-live="polite"><div class="guide-top"><span class="guide-kicker" id="guideKicker"></span><strong class="guide-result" id="guideResult"></strong></div><h2 id="guideTitle"></h2><p id="guideMeaning"></p><p id="guideOutcome"></p><p class="principle" id="guidePrinciple"></p></section><nav class="timeline" id="timeline" aria-label="V04 十步操作解释" hidden></nav><div class="stats" id="stats"></div><div class="floors" id="floors"></div><div class="note" id="note"></div><footer>G-V1 仍开放 · <a href="../../docs/R2-A-GEOMETRY-OPENING-CONTRACT-candidate-v0.1.md">合同草案</a> · <a href="../cs-cy-iw-dw-r1/">已验收的单层 R1</a></footer></main>
 <script type="module">
 import {SCENARIOS} from './src/scenarios.js';
 import {runScenario} from './src/vertical.js';
+import {stepGuide} from './src/step-guide.js';
 const by=id=>document.getElementById(id);
 for(const [id,scene] of Object.entries(SCENARIOS))by('scene').add(new Option(scene.label,id));
 const colors={PAPER:'#eeeae0',MIST:'#d8e4df',SILK:'#ebdcca',MOUNTAIN:'#d6dce0'};
 function render(){
- const scenario=SCENARIOS[by('scene').value],step=Number(by('stepRange').value),output=runScenario(scenario.steps.slice(0,step)),m=output.model;
+ const sceneId=by('scene').value,scenario=SCENARIOS[sceneId],step=Number(by('stepRange').value),output=runScenario(scenario.steps.slice(0,step)),m=output.model,guide=stepGuide(sceneId,scenario,step);
  by('step').textContent=String(step)+' / '+String(scenario.steps.length);
  by('prev').disabled=step===0;by('next').disabled=step===scenario.steps.length;
+ by('guide').classList.toggle('rejected',guide.status==='rejected');
+ by('guideKicker').textContent='当前步骤 · '+step+' / '+scenario.steps.length;
+ by('guideResult').textContent=guide.status==='rejected'?'已拒绝 · 位置高亮但网格不变':guide.status==='initial'?'尚未操作':'已应用 · 绿色框为本步目标';
+ by('guideTitle').textContent=guide.title;
+ by('guideMeaning').textContent='操作：'+guide.meaning;
+ by('guideOutcome').textContent='结果：'+guide.outcome;
+ by('guidePrinciple').textContent='验证重点：'+guide.principle;
+ const timeline=by('timeline');timeline.hidden=sceneId!=='V04';timeline.replaceChildren();
+ if(sceneId==='V04')for(let i=1;i<=scenario.steps.length;i++){
+  const button=document.createElement('button'),desc=stepGuide(sceneId,scenario,i);
+  button.textContent=String(i)+(desc.status==='rejected'?' ×':'');
+  button.className=(i===step?'active ':'')+(desc.status==='rejected'?'reject':'');
+  button.title=desc.title;button.setAttribute('aria-label','跳转第 '+i+' 步：'+desc.title);
+  button.setAttribute('aria-pressed',String(i===step));
+  button.addEventListener('click',()=>{by('stepRange').value=i;render();});
+  timeline.append(button);
+ }
  const stats=[['占用单元',m.metrics.units],['房间',m.metrics.rooms],['露天代理',m.metrics.skyOpen],['受遮盖院落',m.metrics.skyBlocked],['竖向通行',m.verticalPassages.length],['操作拒绝',output.rejections.length]];
  by('stats').replaceChildren();
  for(const [label,num] of stats){const div=document.createElement('div');div.textContent=label+' · '+num;by('stats').append(div);}
@@ -27,6 +45,7 @@ function render(){
   for(let z=10;z>=0;z--)for(let x=0;x<11;x++){
    const k=String(x)+','+String(z),cell=map.get(k),sky=courts.get(k);
    const div=document.createElement('div');div.className='square'+(sky?' court':'')+(sky==='BLOCKED'?' blocked':'');
+   if(guide.target&&guide.target.x===x&&guide.target.z===z&&guide.target.level===level)div.classList.add(guide.target.rejected?'focus-rejected':'focus-applied');
    if(cell){div.style.background=colors[cell.color];const label=document.createElement('span');label.textContent=String(cell.id);div.append(label);}
    div.title='x='+x+' z='+z+' level='+level+(cell?' · cell '+cell.id:'')+(sky?' · court '+sky:'');
    grid.append(div);
@@ -34,7 +53,7 @@ function render(){
   card.append(grid);by('floors').append(card);
  }
  const action=step?scenario.steps[step-1]:null;
- by('note').textContent='当前：'+(action?JSON.stringify(action):'空场景')+' · 比较指纹 '+output.trace.at(-1).fingerprint+' · 支撑模式 '+(m.supports.map(s=>s.mode).join(', ')||'地面')+' · 拒绝 '+(output.rejections.map(r=>r.code).join(', ')||'无')+'。G-V1 尚需三维空域/真实竖向交通独立技术审查。';
+ by('note').textContent='原始操作：'+(action?JSON.stringify(action):'空场景')+' · 比较指纹 '+output.trace.at(-1).fingerprint+' · 支撑模式 '+(m.supports.map(s=>s.mode).join(', ')||'地面')+' · 累计拒绝 '+(output.rejections.map(r=>r.code).join(', ')||'无')+'。红框 × 表示操作被拒绝但目标位置可见；G-V1 尚需三维空域/真实竖向交通独立技术审查。';
 }
 by('scene').addEventListener('change',()=>{by('stepRange').max=SCENARIOS[by('scene').value].steps.length;by('stepRange').value=0;render();});
 by('stepRange').addEventListener('input',render);

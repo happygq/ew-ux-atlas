@@ -9,3 +9,7 @@
 **未证明：** 真正三维 VoidRegion、真实楼梯/跨层可通行图、墙体实际洞口、梁跨和楼板承载、屋盖、排水、多层结构安全或 Safari 手机性能。 `ONE_BAY_BRIDGE` 只是候选承托语义，不能作为真实建筑安全依据。
 
 上游：[R2-A 合同候选](../../docs/R2-A-GEOMETRY-OPENING-CONTRACT-candidate-v0.1.md) · [多层验证计划](../../docs/MULTISTORY-VALIDATION-PLAN-v0.1.md)。Gate G-V1 需补齐空域连通、竖向交通正反例、独立技术审查后才有资格关闭。
+
+## 2026-11-10 · V04 交互说明补丁
+
+验证页面现在逐步解释每次 Add/Recolor/Remove 的**原因、结果和不变量**。V04 在页面中提供 1–10 的步骤跳转；第 6 步尝试移除有二层依赖的一层承托点，必须得到 `SUPPORT_DEPENDENCY`；第 10 步尝试在无承托位置添加二层，必须得到 `UNSUPPORTED_ADD`。这两步用红色高亮被尝试的位置，**不得改变结构网格和比较指纹**。第 7–9 步明确展示解除承托→成功移除→按当前颜色生成新隔墙。这里的 `ExpectReject` 仍只是测试包装，不是新增用户操作。说明文字及交互回归见 `src/step-guide.js` 与 `tests/step-guide.test.js`，R2-V/G-V1 的 Gate 状态不因此关闭。
