@@ -6,6 +6,12 @@ Interactive study of 12 deterministic architectural modules (stepped gable / cur
 
 **Site (after Pages activation):** https://happygq.github.io/ew-ux-atlas/
 
+## Owner acceptance · 2026-11-10
+
+**G1-M1 v0.3 — first-round visual / mobile delivery accepted.** The project owner confirmed the GitHub Pages site is visible on a phone and explicitly stated “验收通过”. The accepted baseline covers the first-round MH/RF/EV module atlas presentation and corrected parallel assembly demonstrations. Public preview: https://happygq.github.io/ew-ux-atlas/
+
+**Scope boundary:** This acceptance does not assert full G1-M1 technical completion or close unimplemented mixed wall/roof/eave joins, L/T/U junctions, real GPU performance, or Authority integration. These remain separately tracked research/technical checks. The existing Node 17/17 test evidence remains attributed to the v0.3 research bundle.
+
 ## Research status
 
 - Parallel alignment corrections: shared world-X sampling for tile courses, rafters and ridge details; gable stepped wall/cap profiles registered to the same stations.
