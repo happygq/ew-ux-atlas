@@ -64,17 +64,17 @@
 - **SG-01**：每个非地面承托构件给出明确依赖源（地基、墙、柱、梁、楼板、承载体、或显式幻想锚）；不能以“另一格存在”替代实际支撑源的语义类型。
 - **SG-02**：表达 **AND 必需源集合** 与 **OR 备选承托方案集合**。例如双柱+承载体可能三者共同必需；替代一跨方案只有在规则允许时可选。选用方案必须确定且可解释，不得把“存在多源”自动视为“任一源即可”。
 - **SG-03**：普通支持链终止于允许的基础/地基节点，禁止循环和孤立根。每条边记录来源身份、条件和证据状态。
-- **SG-04**：独立标注 SEMANTIC_CANDIDATE、GEOMETRY_VERIFIED、REJECTED、FANTASY_AUTHORIZED（最后一项不在普通规则域）。当前 ONE_BAY_BRIDGE 仅是未验算候选，不自动获得几何通过。
-- **SG-05**：Remove 之后可在同一原子事务内选择已被允许的确定性替代方案；否则拒绝 Remove，禁止隐式坍塌、自动搬移或无授权浮空。不得以支持链更换改写未删除的上层 unitId。
+- **SG-04**：区分 CANDIDATE、SEMANTIC_ADMISSIBLE、GEOMETRY_VERIFIED、SEMANTIC_COMMIT_ELIGIBLE、PHYSICAL_USE_ELIGIBLE 等独立证据；幻想授权不属于普通规则域。当前 ONE_BAY_BRIDGE 仅是未验算候选，不自动获得几何通过。
+- **SG-05**：Remove 之后仅在同一原子事务内选择被版本化策略批准、满足 AND/OR 源依赖与语义准入条件的确定性替代方案；否则拒绝 Remove，禁止隐式坍塌、自动搬移或无授权浮空。不得以支持链更换改写未删除的上层 unitId。
 - **SG-06**：S04 直接落地柱、S05 贯通落地柱、S06 柱脚位于下层房屋的承载构件必须有不同源节点及支持链；相似二维投影不等于同源。
 
 ### PG · PassageGraph and stair policy
 
 - **PG-01**：上下 CONTACT_ONLY 不授权任何竖向通行；门/楼梯/连桥须有两个有效服务端点、空间/建筑身份政策、抽象开口要求和路径条件。
-- **PG-02**：OpeningProposal → ApprovedOpeningIntent → RealizedOpening 三阶段证据严格单调；在第三阶段前**不得标记 physicalPassable=true**。提案只能作为只读建议。
+- **PG-02**：OpeningProposal → ApprovedOpeningIntent → RealizedOpening 三类证据事件分别追加、不可覆盖（其当前有效性可能改变）；未取得且未保持有效的实体几何证据前**不得标记 physicalPassable=true**。提案只能作为只读建议。
 - **PG-03**：提案来源、算法版本、候选空间身份、被服务端点、批准来源和对应操作历史前缀必须可追溯。自动推导候选不等于用户已批准该意图。
 - **PG-04**：多候选或空间身份/私密性有歧义时必须轻量确认；即使只有一个几何候选，未明确批准的通用自动许可策略也不得静默批准。
-- **PG-05**：如删除、分区或支持变更使已批准意图的前提失效，意图记录继续可审计，但其有效性必须 SUSPENDED/INVALIDATED，不能自动改绑到另一个楼梯；选择替代方案需要新的记录。
+- **PG-05**：如删除、分区或支持变更使已批准意图的前提失效，意图记录继续可审计，当前有效性改为 SUSPENDED/INVALIDATED；恢复须重新审批并记录，不能自动改绑或凭旧已批准证据复活。
 - **PG-06**：所有楼梯候选、审批、撤回、接口状态及失败原因可在相同输入历史和意图决策日志下确定性重现。
 
 ### ER · Envelope/Roof and evidence
@@ -137,6 +137,89 @@
 ## 7. 交付 / 验收
 
 本合同需与 [48 类型覆盖矩阵](./AT-R02-TYPOLOGY-COVERAGE-MATRIX-v0.1.md) 和 [12 场景 Gate 追踪](./AT-R02-GATE-TRACEABILITY-MATRIX-v0.1.md) 一同独立评审。评审必须核对 R2-V Stage2 的已知限制，给出至少 Q-01 至 Q-06 的可执行决策或明确延期理由；范围含必需正反例、重放边界和未实现实体事实。**只有评审结果被用户确认后，才可将具体 AT-R02 候选字段作为 R2-V3-A 的实现输入**。绝不因本 PR 合入而自动关闭 G-V1 或冻结 R2-A。
+
+## 7A. AT-R02 Delta Revision · B1–B6 的候选修订合同
+
+> **优先适用说明：** 本节细化 §1–§6 中尚未量化的语义；具体实现字段仍是候选，未获独立审查或用户冻结。本节不修改 R1 已验收行为、不追溯修改 Stage2 V05 桥接展示；所有新测试均尚未运行。
+
+### B1 / Q-01、Q-02：三维体积、屋顶与空间意图的可创作来源
+
+**不可忽略的歧义：** 相同的 Add/Recolor/Remove 操作日志及 ConstructionCell 占用，可以解释为两层独立房间、两层通高室内或露天天井。不能在测试中直接手工注入 RoofBoundary/SpaceUse 后，就声称已经证明三种建造动作能自动产生该空间。
+
+| 语义 | 决策来源优先级 | 歧义处理 |
+|---|---|---|
+| 同层 OPEN/PARTITION | R1 建造时确定的持久 EdgeFact | Recolor 不追溯改变 |
+| BuildingIdentity / SpaceUse | 已持久分组/用途、已批准版本化推导政策 | 跨不同建筑或未知用途时，轻量确认并记录；UNKNOWN 不能授权跨建筑通行 |
+| DOUBLE_HEIGHT / SEPARATE_FLOORS / OPEN_COURT | 占用与持久空间意图、或唯一合法的明确版本化策略 | 同占用有多解时输出 PENDING_CHOICE，必须确认 SpaceIntentDecision |
+| OPEN_TO_SKY / COVERED_OPAQUE / COVERED_TRANSLUCENT / PARTIAL_COVER | 已批准的 RoofClosureIntent 或唯一合法的自动投影政策 | 通过上下文候选确认而非新增 AddRoof 建造命令 |
+| 楼梯/门洞 | 系统按建筑身份/用途/许可与抽象界面提出 OpeningProposal | 默认只有候选；审批决策独立持久化 |
+| 跨院/跨巷承托 | 已批准的抽象 SupportPattern | 没有已准入模式则普通提交拒绝；仅候选不能冒充支持 |
+
+轻量确认是附属于现有动作结果的**意图决策事件**（非第四种基础建造动作），记录 decisionId、proposalId、scope、inputPrefix、policyVersion、authorizer、choice。未解决歧义时可保留清楚标注的可回退研究中间态，但**不发布为完成的合法多层建筑**。
+
+**强制反例 T03/T06**：使用**完全相同的 ConstructionLog 和最终格子占用**。A 的已记录决策为 DOUBLE_HEIGHT + COVERED_OPAQUE，结果是封顶的室内跨层 SpaceRegion；B 的已记录决策为 OPEN_COURT + OPEN_TO_SKY，结果是露天庭院空域。两者都可有条件合法，必须经不同有效 DecisionLog 重现。第三份没有决策的日志必须保持 PENDING_CHOICE，不得任意猜测。RoofBoundary 只能由已记录的策略/决策派生，禁止直接合成后宣称操作可达。
+
+**最小体积与界面（Q-01）**：网格是索引，不是实心材料；单格可以有互不重叠的 SOLID 柱分片与 INTERIOR_AIR、EXTERIOR_AIR 或 RESERVED_VOID 分片。VolumeFragment 使用有限、有界、规范排序的空间子片，真实布尔网格属于 G-V2。BoundaryPatch 必须有规范界面坐标、两侧 fragment ID、唯一 owner、kind、airOpen、humanOpeningIntent、realizationEvidence。相邻两格同一真实面仅能有一个逻辑主人；局部开孔拆为互不重叠子片，未变化子片 ID 保留。天空与世界外界使用显式 SKY_EXTERIOR / OUTSIDE_WORLD 端点，而非“最高层空格”代理。透明天窗可以 daylightProxy=POTENTIAL，但 airOpen=false；采光代理不等于实际照度。
+
+**空间关系（Q-02）**：RoomRegion 保留 R1 已验收的**水平建造 OPEN 连通**；SpaceRegion3D 聚合跨层房间/空域的授权室内关系；VoidRegion3D 依 BoundaryPatch.airOpen 计算空气连通；PassageGraph 只由获授权的通行边决定。四者不相互自动推定。密闭楼板、封顶中庭与室外天空不能仅靠空格六邻接打通。
+
+### B2 / Q-03：SupportGraph 方案、准入与替代
+
+SupportAlternative 为一个 **AND 必需源集合**，同一被承载对象的多个 alternative 构成 **OR 备选方案**。每个方案必须记录 patternId、policyVersion、sourceRoles/sourceUnitIds、基础终止路径、geometryEvidence 与批准状态。源角色可为 Ground、Foundation、Wall、Column、Beam、Slab、BearingAssembly；所有被选普通方案须有无环的基础根链。S04 地面双柱+房间、S05 贯通落地柱+房间、S06 柱脚落在下层房屋承载节点，必须是三种不同来源图。
+
+资格分离：
+1. **CANDIDATE**：表达了某个形态与来源，仅是提案；
+2. **SEMANTIC_ADMISSIBLE**：版本化抽象支撑规则明确批准该模式，AND 源齐全，链无环且终止于允许基础根；
+3. **SEMANTIC_COMMIT_ELIGIBLE**：明确标注“研究级语义提交”且满足全部语义准入，不表示可实际承载；
+4. **GEOMETRY_VERIFIED / PHYSICAL_USE_ELIGIBLE**：仅后续 R3-V 实际实体及约束验证后可授予，仍**不是工程安全认证**。
+
+Stage2 V05 的 ONE_BAY_BRIDGE_EW 与其 verifiedGeometry:false 保持**旧研究候选**证据，不能凭旧测试给新合同自动赋予 SEMANTIC_ADMISSIBLE。新 R2-V3 的普通语义提交若找不到已批准的准入方案必须 fail-closed（候选错误 `REJECT_SUPPORT_UNRESOLVED`），不能静默跨入幻想漂浮。
+
+**替代选择规则**：优先保持先前已准入且仍有效的方案；确需替代时，仅从被批准、满足全部来源条件的 alternative 中按版本化策略优先级、patternId、规范 sourceUnitId 顺序选取，记录 before/after 源身份、政策版本和原因。不许将一个方案的 geometryEvidence 借给另一方案。T10 必须验证删一项 AND 必需源且无 OR 备选会原子拒绝；有合法 OR 备选才可替换，同时保持未删除上层 unitId。
+
+### B3 / Q-04、Q-06：楼梯证据、当前状态与事件全序
+
+**不可将三阶段写成单一线性状态机**。证据事件 Proposal/Approval/Realization 只追加、不覆盖；当前有效性另行维护：
+
+| 事件 | 必备前提 | 当前结果 | G-V1 的可用性 |
+|---|---|---|---|
+| PROPOSE | 固定算法版本、有效候选端点及状态前缀 | PROPOSED | 不产生已授权通行 |
+| APPROVE_USER 或 APPROVE_POLICY | 端点、BuildingIdentity、SpaceUse、私密性通过；自动批准须显式获准 policyVersion | ACTIVE | 仅可置 abstractRouteAuthorized=true |
+| DECLINE | 有对应未批准提案 | DECLINED | 不创建通行 |
+| SUSPEND | 删除/支持/权限变化使条件临时不满足 | SUSPENDED | abstractRouteAuthorized=false |
+| INVALIDATE / WITHDRAW | 端点变更、用户撤销或换位 | INVALIDATED / WITHDRAWN | 不自动恢复 |
+| REAPPROVE | 原意图身份仍有效、全部前提重验且新增确认事件 | ACTIVE | 抽象路线可重新获授权 |
+| REALIZE | 真实开孔、梯级、平台、净空和当前许可均通过后续实体 Gate | ACTIVE + 已实现证据 | 才**可能** physicalPassable=true |
+
+即使只有一个几何候选，**默认仍仅提案**；没有已明确批准的自动授权策略，不能自动 APPROVE_POLICY。抽象路线须具双端、授权空间身份、开孔意图和准入支持链。G-V1 要证明**正向** `abstractRouteAuthorized=true, physicalPassable=false`，而非永远只有提案；SUSPENDED/INVALIDATED 时两者均不可通。
+
+**Q-06 事件重放**：ConstructionLog 与 DecisionLog 为两个语义流，但**共用唯一的 eventSeq 全序**；每条有 eventId、transactionId、规范 eventBytes、policyVersion、inputPrefixDigest 和前缀完整状态等价校验。先在隔离投影中完成建造、支持、空间、意图及拒绝检查，再原子发布事件和派生快照。重复相同 eventId/载荷幂等，重复 ID 不同载荷、前缀过期、乱序或部分写入应拒绝且世界可见状态字节不变；审计拒绝事件与世界提交分离。事件摘要仅是对照标签，不能替代状态全量比较或安全凭据。升级策略须说明旧历史的回放兼容性，不得静默改变楼梯或屋盖。
+
+### B4 / Q-05：Region 与 Boundary 身份继承
+
+unitId 仅 Remove→Add 更新，BuildingIdentity 只能按已批准的分组意图修改。同层 RoomRegion、SpaceRegion3D、VoidRegion3D、BoundaryPatch、OpeningIntent 分别拥有独立身份及不同失效边界。
+
+- **无变化的连通分量**保留原 Region ID；拆分时，包含已持久稳定 originAnchor（最初 unitId 或 volume anchor）的子分量优先继承原 ID。若锚点已不存在，则选与原成员重叠最多的子分量，平局用规范空间坐标排序；其余子分量获新 ID 并记录 splitFrom。
+- 合并时由仍存活的输入 Region 中最早创建的 ID 作为继承者，其他旧 ID 记录 mergedInto 并退役。退役 ID 不可静默复活，避免失效旧 OpeningIntent 错误重绑定。
+- 对 BoundaryPatch，宿主面及子片无变化时保持 ID；局部改变只更新受影响 patch 子片，不能使无关墙段编号漂移。若所依附 Room/Space/Boundary/Support 身份失效，已批准开口须 SUSPENDED/INVALIDATED，不能留下幽灵门洞或悬空楼梯。
+- T12 须覆盖 split→merge→split、无关区域稳定、拒绝原子性、旧意图不得自动复活。具体 anchor 选择和 tie-break 需经独立复核，当前仅候选。
+
+### B5/B6：矩阵追踪与验收来源
+
+48 个类型 ID 保留；覆盖矩阵必须对每个 ID 显式追踪到 T 场景或有理由的延期 Gate。原 T01–T12 核心关联仅显式覆盖 40 个 ID；补充 H03/H04/V03/V06/P01/S01/R01/R04 的从属或延期映射，不能将“出现在表内”冒充对应案例已经运行。G-V1 P0 每项提供可复现**正例和负例**、初始状态/操作/DecisionLog 来源、目标状态、拒绝结果、受影响闭包、身份稳定、回放证据和 `physicalPassable=false` 标记；G-V2 的真实几何/力学/视觉证据另外验收。
+
+### B1–B6 Delta 审查索引
+
+| 项 | 本轮候选修订 | 需独立审查的最小证据 |
+|---|---|---|
+| B1 | §7A 体积界面与意图来源 | T03/T06 同占用不同决策 |
+| B2 | §7A 支持 AND/OR 准入 | T10 源删除、合法替代、桥接不得假认证 |
+| B3 | §7A 双轴状态、全序日志 | T07 抽象正例、T12 幂等/乱序/原子性 |
+| B4 | §7A ID 继承与 Patch 所有权 | T12 split/merge、旧意图不复活 |
+| B5 | Coverage/Gate Matrix 的补充交叉映射 | 48 ID 均有追踪或显式后置 |
+| B6 | Gate Matrix 逐能力正反例 | G-V1 证据清单与 G-V2 边界 |
+
+**Q-01～Q-06 至此均有候选处置，但尚未完成独立技术复核与冻结。**
 
 ## 8. 核对依据
 
