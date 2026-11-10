@@ -1,0 +1,324 @@
+import { createHash } from 'node:crypto';
+import { cellKey, cellOrder, CHOICES, COLORS, compare, editEdges, eligibleScopes,
+  POLICY_VERSION, supportFacts } from './policy.js';
+import { projectSpatial } from './spatial.js';
+
+export { POLICY_VERSION, cellKey } from './policy.js';
+export { OUTSIDE_WORLD, SKY_EXTERIOR, probeSlabOpening } from './spatial.js';
+
+// Canonical UTF-8 JSON: sort object keys, retain array order, omit no fields.
+export function canonicalBytes(value) {
+  if (value === null || typeof value === 'boolean' || typeof value === 'string' ||
+      Number.isSafeInteger(value)) return JSON.stringify(value);
+  if (Array.isArray(value)) return '[' + value.map(canonicalBytes).join(',') + ']';
+  if (isRecord(value)) return '{' + Object.keys(value).sort(compare).map(key =>
+    JSON.stringify(key) + ':' + canonicalBytes(value[key])).join(',') + '}';
+  throw new TypeError('Noncanonical JSON value');
+}
+
+const isRecord = value => value !== null && typeof value === 'object' &&
+  (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
+const digest = bytes => createHash('sha256').update(bytes, 'utf8').digest('hex');
+const freeze = value => {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    for (const child of Object.values(value)) freeze(child);
+    Object.freeze(value);
+  }
+  return value;
+};
+const admitted = (transactionId, idempotent = false) =>
+  freeze({ status: 'SEMANTICALLY_ADMITTED', transactionId, idempotent });
+const rejected = code => freeze({ status: 'REJECTED', code });
+const validRequestId = id => typeof id === 'string' && /^[a-zA-Z0-9._-]{1,96}$/.test(id);
+const validAuthorizer = id => typeof id === 'string' && id.length <= 160 && id.trim().length > 0;
+const same = (a, b) => canonicalBytes(a) === canonicalBytes(b);
+
+export function normalizedConstructionBytes(constructionLog) {
+  // Index is the construction order, not the shared eventSeq.
+  return canonicalBytes(constructionLog.map((event, order) => ({ order, ...event.action })));
+}
+
+function grid(config) {
+  if (!isRecord(config)) throw new TypeError('INVALID_GRID');
+  const { width = 6, depth = 6, levels = 3, operatorId = 'local-operator' } = config;
+  if (![width, depth, levels].every(Number.isSafeInteger) ||
+      width < 3 || width > 12 || depth < 3 || depth > 12 || levels < 2 || levels > 3) {
+    throw new TypeError('INVALID_GRID');
+  }
+  if (!validAuthorizer(operatorId)) throw new TypeError('INVALID_OPERATOR');
+  return { width, depth, levels, operatorId };
+}
+
+function normalizeAction(config, action) {
+  if (!isRecord(action)) return null;
+  const { type, x, z, level, color } = action;
+  if (!['Add', 'Recolor', 'Remove'].includes(type) ||
+      ![x, z, level].every(Number.isSafeInteger) ||
+      x < 0 || x >= config.width || z < 0 || z >= config.depth || level < 0 || level >= config.levels ||
+      !Object.keys(action).every(key => ['type', 'x', 'z', 'level', ...(type === 'Remove' ? [] : ['color'])]
+        .includes(key))) return null;
+  if (type === 'Remove') return { type, x, z, level };
+  return COLORS.includes(color) ? { type, x, z, level, color } : null;
+}
+
+function plan(state, action) {
+  const prev = state.snapshot;
+  const cells = new Map(prev.occupancy.map(c => [cellKey(c.x, c.z, c.level), c]));
+  const { x, z, level, color } = action;
+  const key = cellKey(x, z, level);
+  const cell = cells.get(key);
+  const actionIndex = state.constructionLog.length;
+  let nextUnit = prev.nextIds.unit;
+  if (action.type === 'Add') {
+    if (cell) return rejected('OCCUPIED');
+    // An Add cannot be justified by its own projection or any staged Add.
+    if (level > 0 && !cells.has(cellKey(x, z, level - 1))) return rejected('REJECT_SUPPORT_UNRESOLVED');
+    cells.set(key, { x, z, level, color, unitId: `unit:${nextUnit++}`, createdByActionIndex: actionIndex });
+  } else {
+    if (!cell) return rejected('NOT_OCCUPIED');
+    if (action.type === 'Recolor') cells.set(key, { ...cell, color });
+    else cells.delete(key);
+  }
+  const support = supportFacts(cells);
+  if (!support) return rejected('REJECT_SUPPORT_UNRESOLVED');
+  const retained = new Map(prev.spaceIntents.map(intent => [intent.scopeId, intent]));
+  const scopes = eligibleScopes(state.initial, cells);
+  return {
+    cells, support, nextUnit,
+    scopes: scopes.filter(scope => !retained.has(scope.scopeId)),
+    retained: scopes.flatMap(scope => retained.has(scope.scopeId) ? [retained.get(scope.scopeId)] : []),
+  };
+}
+
+function proposalFor(state, bytes, requestId, action, scopes) {
+  const inputPrefixDigest = digest(bytes);
+  const proposalId = `proposal:${digest(canonicalBytes({
+    policyVersion: state.policyVersion, inputPrefixDigest, requestId, action, scopes, options: CHOICES,
+  }))}`;
+  return freeze({
+    status: 'PENDING_CHOICE', proposalId, requestId, inputPrefixDigest, policyVersion: state.policyVersion,
+    ghost: action,
+    scopes: scopes.map(scope => ({ ...scope, options: CHOICES })),
+  });
+}
+
+function normalizeApproval(approval, scopes, operatorId) {
+  if (!isRecord(approval) || Object.keys(approval).length !== 2 ||
+      approval.authorizer !== operatorId || !Array.isArray(approval.choices) ||
+      approval.choices.length !== scopes.length) return null;
+  const byScope = new Map();
+  for (const choice of approval.choices) {
+    if (!isRecord(choice) || Object.keys(choice).length !== 3 ||
+        typeof choice.scopeId !== 'string' || byScope.has(choice.scopeId) ||
+        !CHOICES.some(c => c.spaceIntent === choice.spaceIntent && c.roofClosure === choice.roofClosure)) return null;
+    const { scopeId, spaceIntent, roofClosure } = choice;
+    byScope.set(scopeId, { scopeId, spaceIntent, roofClosure });
+  }
+  const choices = scopes.map(s => byScope.get(s.scopeId));
+  return choices.every(Boolean) ? { authorizer: approval.authorizer, choices } : null;
+}
+
+function deriveInterfaceChanges(previous, spatial, constructionEvent) {
+  const retained = new Set(spatial.boundaryPatches.map(p => p.id));
+  // Future F2 can use these identity changes to project suspension/invalidation
+  // in this transaction. This is derived data, never a second authority event.
+  return {
+    cause: {
+      constructionEventId: constructionEvent.eventId, transactionId: constructionEvent.transactionId,
+      policyVersion: constructionEvent.policyVersion,
+    },
+    retiredPatchIds: previous.boundaryPatches.filter(p => !retained.has(p.id)).map(p => p.id),
+    retiredRegions: spatial.retiredRegions,
+  };
+}
+
+function candidate(state, bytes, requestId, action, planned, proposal, approval) {
+  const transactionId = `tx:${requestId}`;
+  const envelope = {
+    transactionId, policyVersion: state.policyVersion,
+    inputPrefixDigest: proposal?.inputPrefixDigest ?? digest(bytes),
+  };
+  const construction = {
+    ...envelope, eventId: `construction:${requestId}`, eventSeq: state.nextEventSeq,
+    stream: 'ConstructionLog', requestId, action,
+  };
+  const decisions = planned.scopes.map((scope, i) => {
+    const decisionId = `decision:${requestId}:${i + 1}`;
+    return {
+      ...envelope, eventId: decisionId, eventSeq: construction.eventSeq + i + 1,
+      stream: 'DecisionLog', decisionId, proposalId: proposal.proposalId,
+      authorizer: approval.authorizer, scope, choice: approval.choices[i],
+    };
+  });
+  const prev = state.snapshot;
+  const spaceIntents = [
+    ...planned.retained,
+    ...decisions.map(e => ({ ...e.scope, ...e.choice, decisionId: e.decisionId })),
+  ].sort((a, b) => compare(a.scopeId, b.scopeId));
+  const { retiredRegions, ...spatial } = projectSpatial(state.initial, planned.cells, spaceIntents, prev);
+  const transaction = [construction, ...decisions];
+  return {
+    transaction,
+    state: {
+      ...state,
+      constructionLog: [...state.constructionLog, construction],
+      decisionLog: [...state.decisionLog, ...decisions],
+      nextEventSeq: state.nextEventSeq + transaction.length,
+      snapshot: {
+        occupancy: [...planned.cells.values()].sort(cellOrder),
+        constructionEdges: editEdges(prev.constructionEdges, planned.cells, action),
+        spaceIntents, support: planned.support, passages: [],
+        ...spatial, nextIds: { ...spatial.nextIds, unit: planned.nextUnit },
+        interfaceChanges: deriveInterfaceChanges(prev, { ...spatial, retiredRegions }, construction),
+      },
+    },
+  };
+}
+
+function initialState(config) {
+  const initial = grid(config);
+  const seed = { boundaryPatches: [], voidRegions: [], spaceRegions: [], nextIds: { patch: 1, unit: 1, void: 1, space: 1 } };
+  const { retiredRegions, ...spatial } = projectSpatial(initial, new Map(), [], seed);
+  return freeze({
+    policyVersion: POLICY_VERSION, initial, constructionLog: [], decisionLog: [], nextEventSeq: 1,
+    snapshot: {
+      occupancy: [], constructionEdges: [], spaceIntents: [], support: [], passages: [],
+      ...spatial, interfaceChanges: null,
+    },
+  });
+}
+
+function makeWorld(config, hooks) {
+  let state = initialState(config);
+  let bytes = canonicalBytes(state);
+  let busy = false;
+  const pending = new Map();
+  const cancelled = new Set();
+  const packets = new Map();
+
+  function publish(staged, checkHooks) {
+    // All reads still see the old committed state until these checks finish.
+    const next = freeze(staged.state);
+    const transaction = freeze(staged.transaction);
+    const nextBytes = canonicalBytes(next);
+    if (checkHooks) {
+      busy = true;
+      try {
+        for (const [name, code] of [['validateProjection', 'VALIDATION_FAILED'], ['beforePublish', 'PUBLICATION_FAILED']]) {
+          try {
+            if (hooks[name] !== undefined && hooks[name](next, transaction) !== true) return rejected(code);
+          } catch {
+            return rejected(code);
+          }
+        }
+      } finally {
+        busy = false;
+      }
+    }
+    // No user code runs between publishing these private synchronous references.
+    packets.set(transaction[0].requestId, transaction);
+    state = next;
+    bytes = nextBytes;
+    return admitted(transaction[0].transactionId);
+  }
+
+  const api = {
+    get state() { return state; },
+    bytes: () => bytes,
+    journal: () => freeze({
+      policyVersion: state.policyVersion, initial: state.initial, transactions: [...packets.values()],
+    }),
+    submit(requestId, input) {
+      if (busy) return rejected('REENTRANT_MUTATION');
+      const action = normalizeAction(state.initial, input);
+      if (!validRequestId(requestId) || !action) return rejected('INVALID_REQUEST');
+      const old = packets.get(requestId)?.[0];
+      if (old) return same(old.action, action) ? admitted(old.transactionId, true) : rejected('EVENT_ID_CONFLICT');
+      const planned = plan(state, action);
+      if (planned.code) return planned;
+      if (!planned.scopes.length) return publish(candidate(state, bytes, requestId, action, planned), true);
+      const proposal = proposalFor(state, bytes, requestId, action, planned.scopes);
+      if (cancelled.has(proposal.proposalId)) return rejected('CANCELLED_PROPOSAL');
+      pending.set(proposal.proposalId, { prefix: state, proposal });
+      return proposal;
+    },
+    approve(proposalId, input) {
+      if (busy) return rejected('REENTRANT_MUTATION');
+      const draft = pending.get(proposalId);
+      if (!draft) {
+        const decisions = state.decisionLog.filter(e => e.proposalId === proposalId);
+        if (!decisions.length) return rejected('UNKNOWN_PROPOSAL');
+        const approval = normalizeApproval(input, decisions.map(e => e.scope), state.initial.operatorId);
+        return approval && same(approval.choices, decisions.map(e => e.choice)) &&
+          decisions.every(e => e.authorizer === approval.authorizer)
+          ? admitted(decisions[0].transactionId, true) : rejected('EVENT_ID_CONFLICT');
+      }
+      // Reference equality here is equality with the exact immutable committed
+      // prefix, not merely a comparison of digest labels.
+      if (draft.prefix !== state) return rejected('STALE_PREFIX');
+      const { requestId, ghost: action } = draft.proposal;
+      if (packets.has(requestId)) return rejected('EVENT_ID_CONFLICT');
+      const planned = plan(state, action);
+      if (planned.code) return planned;
+      const proposal = proposalFor(state, bytes, requestId, action, planned.scopes);
+      if (proposal.proposalId !== proposalId) return rejected('STALE_PROPOSAL');
+      const approval = normalizeApproval(input, planned.scopes, state.initial.operatorId);
+      if (!approval) return rejected('INVALID_APPROVAL');
+      const result = publish(candidate(state, bytes, requestId, action, planned, proposal, approval), true);
+      if (result.status === 'SEMANTICALLY_ADMITTED') pending.delete(proposalId);
+      return result;
+    },
+    cancel(proposalId) {
+      if (busy) return rejected('REENTRANT_MUTATION');
+      if (!pending.delete(proposalId)) return rejected('UNKNOWN_PROPOSAL');
+      cancelled.add(proposalId);
+      return freeze({ status: 'CANCELLED' });
+    },
+  };
+
+  function applyPacket(packet) {
+    const construction = Array.isArray(packet) ? packet[0] : null;
+    if (!isRecord(construction) || !validRequestId(construction.requestId)) throw new Error('INVALID_TRANSACTION');
+    const { requestId } = construction;
+    const old = packets.get(requestId);
+    if (old) {
+      if (!same(old, packet)) throw new Error('EVENT_ID_CONFLICT');
+      return;
+    }
+    const action = normalizeAction(state.initial, construction.action);
+    if (!action) throw new Error('INVALID_REQUEST');
+    const planned = plan(state, action);
+    if (planned.code) throw new Error(planned.code);
+    if (packet.length !== 1 + planned.scopes.length) throw new Error('INCOMPLETE_TRANSACTION');
+    const proposal = planned.scopes.length ? proposalFor(state, bytes, requestId, action, planned.scopes) : null;
+    let approval = null;
+    if (proposal) {
+      const records = packet.slice(1);
+      approval = normalizeApproval({
+        authorizer: records[0]?.authorizer, choices: records.map(e => e?.choice),
+      }, planned.scopes, state.initial.operatorId);
+      if (!approval) throw new Error('INVALID_APPROVAL');
+    }
+    const staged = candidate(state, bytes, requestId, action, planned, proposal, approval);
+    // Compare complete canonical event bytes against a projection rebuilt from
+    // the preceding verified packets, including prefix, order, and policy.
+    if (!same(staged.transaction, packet)) throw new Error('TRANSACTION_MISMATCH');
+    publish(staged, false);
+  }
+
+  return { api: Object.freeze(api), applyPacket };
+}
+
+export function createWorld(config = {}, hooks = {}) {
+  return makeWorld(config, hooks).api;
+}
+
+export function replay(journal) {
+  if (!isRecord(journal) || journal.policyVersion !== POLICY_VERSION ||
+      !Array.isArray(journal.transactions) || !same(grid(journal.initial), journal.initial)) {
+    throw new Error('INVALID_JOURNAL');
+  }
+  const { api, applyPacket } = makeWorld(journal.initial, {});
+  for (const packet of journal.transactions) applyPacket(packet);
+  return api;
+}
