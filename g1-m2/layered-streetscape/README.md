@@ -4,6 +4,14 @@
 
 Proposed public preview: `https://happygq.github.io/ew-ux-atlas/g1-m2/layered-streetscape/`
 
+## Compass and site-orientation convention (research overlay)
+
+- **Correct traditional-direction phrase:** 坐北朝南 (located on the north side, primary façade faces South), NOT 坐南朝北. In this research coordinate system **+Z = virtual-world North; +X = East; −Z = South**.
+- Default **site planning preference** is azimuth **180° South**, with **135° Southeast** and **225° Southwest** readily available plus fully customizable 0–359° directions.
+- The on-screen world compass is shown by default and rotates correctly as the orbit camera turns; a separate gold reference dot indicates the chosen preferred orientation. It is *not* a phone magnetometer, GPS heading, or verified entrance direction of the existing meshes.
+- Orientation selection is a **non-blocking design aid**: it must not relocate buildings, mutate the Add/Remove topology, infer a façade from a roof ridge, or reject legitimate atypical Huizhou historical arrangements.
+- Pure world-frame projection is implemented in `src/compass.js` and checked with `tests/compass.test.js`. The new research UI has not yet received owner mobile visual acceptance.
+
 ## What this actually builds
 
 A/B/C compose **6–10 real parametric roofed buildings**, grouped in three depth rows. Every building has two real stepped-gable end walls, roof shell, a curved tile-course layer, eaves, side-wall surfaces and continuous ground-bearing foundation. Each gable is a semantic part of its own building; there are **no free-floating disconnected wall-card props**. The photographed Huizhou streetscape is a *visual study reference*, not re-uploaded to the public demo.
