@@ -1,0 +1,31 @@
+name: EW-UX R2-V Stage2 semantic gate
+on:
+  push:
+    paths:
+      - 'g1-m2/r2-vertical-v02/**'
+      - '.github/workflows/ew-ux-r2v-stage2.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  semantic-stage2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22','24']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Run V01-V07 semantic tests
+        working-directory: g1-m2/r2-vertical-v02
+        run: npm test
+      - name: Verify spatial modules
+        working-directory: g1-m2/r2-vertical-v02
+        run: |
+          node --check src/void-and-circulation.js
+          node --check src/extended-scenarios.js
+          node --check src/explanations.js

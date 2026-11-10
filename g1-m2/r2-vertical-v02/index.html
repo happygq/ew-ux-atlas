@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>EW-UX · R2-V Stage 2 · 空域与承托研究</title>
+<style>
+:root{--ink:#284238;--muted:#68756b;--paper:#f5f1e9;--wood:#af9674;--green:#315e4c;--line:#d8d0c1}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:14px system-ui,-apple-system,"Microsoft YaHei",sans-serif}header{padding:18px max(18px,calc((100vw - 1240px)/2));background:#223b30;color:#f8f4e9;font:600 19px Georgia,serif;letter-spacing:.03em}main{max-width:1240px;padding:22px 18px 55px;margin:auto}.kicker{font-weight:700;letter-spacing:.17em;font-size:11px;color:#93714b}.intro{display:flex;gap:18px;justify-content:space-between;flex-wrap:wrap}.intro h1{font:400 clamp(29px,4vw,42px) Georgia,"Songti SC",serif;margin:8px 0 10px}.intro p{max-width:880px;line-height:1.8;color:var(--muted);margin:0 0 16px}.pill{font-size:11px;padding:9px 14px;background:#efe2cf;color:#9c6337;border-radius:50px;align-self:start;font-weight:700}button,select,input{font:inherit}button,select{background:#fffdf8;border:1px solid #cabfae;color:var(--ink);border-radius:8px;padding:9px 12px}button{cursor:pointer}button:disabled{opacity:.4}.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:#fffdf8;padding:14px;border:1px solid var(--line);border-radius:11px;margin:15px 0}select{flex:1;min-width:230px}input[type=range]{flex:2;min-width:130px;accent-color:var(--green)}#counter{white-space:nowrap;font-weight:700}.explain{background:#fffdf9;border:1px solid var(--line);border-left:5px solid #598474;border-radius:10px;padding:14px 18px;margin:12px 0}.explain.rejected{border-left-color:#b65332;background:#fff5ec}.explain h2{margin:3px 0 7px;font-size:20px}.explain p{margin:0;line-height:1.6;color:#536459}.hint{font-size:12px;color:#a06b43;margin-top:7px;font-weight:600}.metrics{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.metric{border:1px solid var(--line);background:#e6e9df;padding:10px 14px;border-radius:8px;min-width:112px}.metric b{font-size:19px;display:block;margin-top:4px}.content{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:14px}.floors{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}.floor{border:1px solid var(--line);background:#fffcf7;padding:11px;border-radius:11px;min-width:0}.floor h3{font-size:15px;margin:1px 0 10px}.grid{display:grid;grid-template-columns:repeat(11,minmax(0,1fr));aspect-ratio:1;gap:1px;background:#d0c6b6}.sq{aspect-ratio:1;background:#f8f3ea;position:relative}.sq.occ span{position:absolute;top:2px;left:2px;font-size:9px;color:#43534a}.sq.sky-open{background:#c2dfd0}.sq.sky-covered{background:#e8c48e}.sq.sky-sealed{background:#d49e82}.sq.stair{box-shadow:inset 0 0 0 2px #715fbb}.sq.focus{outline:3px solid #458065;outline-offset:-2px;z-index:2}.sq.focus.reject{outline-color:#be5739}.sq.focus.reject::after{content:'×';position:absolute;right:2px;bottom:-2px;font-size:15px;color:#a43f2b}.sidebar section{border:1px solid var(--line);background:#fffcf7;border-radius:10px;padding:12px 13px;margin-bottom:10px}.sidebar h3{font-size:15px;margin:0 0 8px}.sidebar p,.sidebar li{color:#607166;font-size:12px;line-height:1.7}.sidebar ul{margin:0;padding-left:17px}.legend{display:flex;flex-wrap:wrap;gap:8px;font-size:12px;color:#6c796f;margin:12px 0 16px}.sw{display:inline-block;width:14px;height:13px;border-radius:3px;vertical-align:middle;margin-right:5px;border:1px solid #c5bcae}.diagnostic{margin-top:12px;background:#fdf7e9;border:1px solid #e2d3b4;border-radius:10px;padding:14px;color:#716856;font-size:12px;line-height:1.7;overflow-wrap:anywhere}a{color:#315c4b}footer{font-size:12px;color:#77736d;margin-top:16px}.tags{display:flex;gap:8px;flex-wrap:wrap}.tag{font-size:11px;padding:4px 8px;background:#e7ebe2;border-radius:50px}.passage-zero{color:#ad563b;font-weight:700}@media(max-width:1060px){.content{grid-template-columns:1fr}.sidebar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.sidebar section{margin:0}}@media(max-width:720px){.floors{grid-template-columns:1fr}.floor .grid{max-width:440px}.sidebar{grid-template-columns:1fr}.controls{gap:6px}.controls select{width:100%}main{padding:17px 12px 55px}}
+</style></head><body><header>EW / EXPANDABLE WORLDS</header><main><div class="intro"><div><div class="kicker">R2-V · STAGE 2 · ISOLATED RESEARCH</div><h1>二／三层：空域、承托与楼梯候选</h1><p>这是一套可逐步回放的<strong>空间拓扑实验</strong>，不是完成的多层三维建筑。蓝绿代表三维空气可通向天空；黄色代表单格被上层遮盖；紫色框代表符合初步条件的楼梯<strong>候选</strong>。楼板未真正开孔，楼梯从未被标记为可通行。</p></div><div class="pill">G-V1 OPEN / 合同未冻结</div></div>
+<div class="controls"><select id="scenario" aria-label="选择实验场景"></select><button id="prev">◀</button><input id="stepSlider" type="range" min="0" max="0" value="0" aria-label="实验步骤"><button id="next">▶</button><strong id="counter"></strong></div>
+<section class="explain" id="explain"><div class="kicker" id="actionState"></div><h2 id="actionTitle"></h2><p id="actionDetails"></p><div class="hint" id="actionHint"></div></section>
+<div class="metrics" id="metrics"></div><div class="legend"><span><i class="sw" style="background:#c2dfd0"></i>连通天空的内院空域</span><span><i class="sw" style="background:#e8c48e"></i>直接遮盖、仍可能经侧面通天</span><span><i class="sw" style="background:#d49e82"></i>封闭空域</span><span><i class="sw" style="border:2px solid #715fbb"></i>楼梯候选，非真实洞口</span><span><i class="sw" style="border:2px solid #be5739"></i>被拒绝的尝试位置</span></div>
+<div class="content"><div class="floors" id="floors"></div><aside class="sidebar"><section><h3>三维空域</h3><div id="voids"></div></section><section><h3>承托依赖</h3><div id="supports"></div></section><section><h3>楼梯 / 楼板开口</h3><div id="stairs"></div></section><section><h3>观察说明</h3><div id="limits"></div></section></aside></div><div class="diagnostic" id="diagnostic"></div>
+<footer><a href="../r2-vertical-v01/">上一版 R2-V / V04 逐步解释（已验收界面）</a>　·　<a href="../../docs/R2-V-STAGE2-FINDINGS-v0.1.md">Stage 2 技术发现与开放关口</a>　·　<a href="../../docs/R2-A-GEOMETRY-OPENING-CONTRACT-candidate-v0.1.md">R2-A 原合同候选</a></footer>
+<script type="module">
+const __M=Object.create(null);
+__M['vertical.js'] = (()=>{
+/**
+ * EW-UX R2-V v0.1, isolated three-level *semantic* prototype.
+ * Coordinates: +X east, +Z north, level 0..levels-1; no 3D mesh or structural certification.
+ * User operations remain Add / Recolor / Remove; test 'ExpectReject' is not an operation.
+ */
+const CONTRACT = 'ew/ux/r2-vertical-semantics/candidate-v0.1';
+const COLORS = Object.freeze(['PAPER','MIST','SILK','MOUNTAIN']);
+const DIRS = Object.freeze([[1,0],[-1,0],[0,1],[0,-1]]);
+const key = (x,z,level) => `${level}:${x},${z}`;
+const clone = o => JSON.parse(JSON.stringify(o));
+const order = (a,b) => a.level-b.level||a.z-b.z||a.x-b.x;
+const edgeKey = (a,b) => [a,b].sort().join('|');
+const has = (s,x,z,l) => s.cells[key(x,z,l)];
+const inside = (s,x,z,l) => Number.isInteger(x)&&Number.isInteger(z)&&Number.isInteger(l)&&x>=0&&x<s.width&&z>=0&&z<s.height&&l>=0&&l<s.levels;
+const adjacent = (s,c) => DIRS.map(([dx,dz])=>[c.x+dx,c.z+dz]).filter(([x,z])=>inside(s,x,z,c.level));
+const fail = (code) => {const e=new Error(code);e.code=code;throw e;};
+function initialState(width=11,height=11,levels=3){
+ if(!Number.isInteger(width)||!Number.isInteger(height)||!Number.isInteger(levels)||width<3||height<3||width>32||height>32||levels<2||levels>3)fail('INVALID_GRID');
+ return {contract:CONTRACT,width,height,levels,cells:{},edges:{},history:[],nextId:1};
+}
+/** One-bay bridge is a *semantic support candidate*, not a verified beam/span. */
+function supportFor(s,c){
+ if(c.level===0)return {mode:'GROUND',sources:[],verifiedGeometry:false};
+ const l=c.level-1,below=has(s,c.x,c.z,l);
+ if(below)return {mode:'DIRECT',sources:[key(c.x,c.z,l)],verifiedGeometry:false};
+ for(const [dx,dz,label] of [[1,0,'ONE_BAY_BRIDGE_EW'],[0,1,'ONE_BAY_BRIDGE_NS']]){
+  const a=has(s,c.x-dx,c.z-dz,l),b=has(s,c.x+dx,c.z+dz,l);
+  if(a&&b)return {mode:label,sources:[key(a.x,a.z,l),key(b.x,b.z,l)].sort(),verifiedGeometry:false};
+ }
+ return null;
+}
+function apply(state,op){
+ if(!state||state.contract!==CONTRACT)fail('BAD_CONTRACT');
+ if(!op||!['Add','Recolor','Remove'].includes(op.type))fail('BAD_OPERATION');
+ const {x,z,level}=op;
+ if(!inside(state,x,z,level))fail('INVALID_POSITION');
+ const k=key(x,z,level),present=!!state.cells[k];
+ if(op.type==='Add'&&present)fail('OCCUPIED');
+ if(op.type!=='Add'&&!present)fail('NOT_OCCUPIED');
+ if(op.type!=='Remove'&&!COLORS.includes(op.color))fail('INVALID_COLOR');
+ const s=clone(state),log={type:op.type,x,z,level};
+ if(op.type==='Add'){
+  const cell={id:s.nextId++,x,z,level,color:op.color};s.cells[k]=cell;
+  if(!supportFor(s,cell))fail('UNSUPPORTED_ADD');
+  for(const [nx,nz] of adjacent(s,cell)){
+   const n=has(s,nx,nz,level);
+   if(n)s.edges[edgeKey(k,key(nx,nz,level))]=n.color===cell.color?'OPEN':'PARTITION';
+  }
+  log.color=op.color;
+ } else if(op.type==='Recolor'){
+  s.cells[k].color=op.color;log.color=op.color;
+ } else {
+  delete s.cells[k];
+  for(const [nx,nz] of adjacent(s,{x,z,level}))delete s.edges[edgeKey(k,key(nx,nz,level))];
+  if(Object.values(s.cells).some(c=>c.level>0&&!supportFor(s,c)))fail('SUPPORT_DEPENDENCY');
+ }
+ s.history.push(log);
+ return s;
+}
+function replay(ops,width=11,height=11,levels=3){return ops.reduce((s,o)=>apply(s,o),initialState(width,height,levels));}
+function enclosedAtLevel(s,level){
+ const vacant=new Set();for(let z=0;z<s.height;z++)for(let x=0;x<s.width;x++)if(!has(s,x,z,level))vacant.add(`${x},${z}`);
+ const exterior=new Set(),q=[];
+ for(const p of vacant){const [x,z]=p.split(',').map(Number);if(x===0||z===0||x===s.width-1||z===s.height-1){exterior.add(p);q.push(p);}}
+ for(let i=0;i<q.length;i++){
+  const [x,z]=q[i].split(',').map(Number);for(const [dx,dz] of DIRS){const p=`${x+dx},${z+dz}`;if(vacant.has(p)&&!exterior.has(p)){exterior.add(p);q.push(p);}}
+ }
+ const candidates=new Set([...vacant].filter(x=>!exterior.has(x))),out=[];
+ while(candidates.size){
+  const start=[...candidates].sort()[0];candidates.delete(start);const group=[start];
+  for(let i=0;i<group.length;i++){
+   const [x,z]=group[i].split(',').map(Number);
+   for(const [dx,dz] of DIRS){const p=`${x+dx},${z+dz}`;if(candidates.delete(p))group.push(p);}
+  }
+  const cells=group.map(p=>{const [x,z]=p.split(',').map(Number);return {x,z};}).sort((a,b)=>a.z-b.z||a.x-b.x);
+  const openColumns=cells.filter(c=>{for(let l=level+1;l<s.levels;l++)if(has(s,c.x,c.z,l))return false;return true;}).length;
+  out.push({id:`court:${level}:${cells[0].x},${cells[0].z}`,level,area:cells.length,cells,
+   skyProxy:openColumns===cells.length?'OPEN':openColumns===0?'BLOCKED':'PARTIAL',openColumns,blockedColumns:cells.length-openColumns,
+   actualRoofGeometry:false});
+ }
+ return out.sort((a,b)=>a.id.localeCompare(b.id));
+}
+function roomsForLevel(s,level){
+ const rem=new Set(Object.values(s.cells).filter(c=>c.level===level).map(c=>key(c.x,c.z,level))),rooms=[];
+ while(rem.size){
+  const start=[...rem].sort()[0],q=[start];rem.delete(start);
+  for(let i=0;i<q.length;i++){
+   const k=q[i],c=s.cells[k];for(const [nx,nz] of adjacent(s,c)){
+    const other=key(nx,nz,level);
+    if(rem.has(other)&&s.edges[edgeKey(k,other)]==='OPEN'){rem.delete(other);q.push(other);}
+   }
+  }
+  const cells=q.map(k=>s.cells[k]).sort(order);rooms.push({id:`room:${Math.min(...cells.map(c=>c.id))}`,level,unitIds:cells.map(c=>c.id)});
+ }
+ return rooms.sort((a,b)=>a.id.localeCompare(b.id));
+}
+function derive(s){
+ const supports=Object.values(s.cells).filter(c=>c.level>0).sort(order).map(c=>({cell:key(c.x,c.z,c.level),...supportFor(s,c)}));
+ const verticalContacts=Object.values(s.cells).filter(c=>c.level>0&&has(s,c.x,c.z,c.level-1)).sort(order)
+  .map(c=>({upper:key(c.x,c.z,c.level),lower:key(c.x,c.z,c.level-1),relation:'CONTACT_ONLY',passable:false}));
+ const courts=[],rooms=[];
+ for(let level=0;level<s.levels;level++){courts.push(...enclosedAtLevel(s,level));rooms.push(...roomsForLevel(s,level));}
+ const occupied=Object.values(s.cells).sort(order);
+ return {contract:CONTRACT,levels:s.levels,occupied,edges:Object.entries(s.edges).sort((a,b)=>a[0].localeCompare(b[0])),
+  supports,verticalContacts,verticalPassages:[],rooms,courtyards:courts,
+  metrics:{units:occupied.length,rooms:rooms.length,skyOpen:courts.filter(c=>c.skyProxy==='OPEN').length,skyBlocked:courts.filter(c=>c.skyProxy==='BLOCKED').length}};
+}
+function validate(s){
+ const issues=[],actual=new Set();
+ for(const c of Object.values(s.cells)){
+  if(c.level>0&&!supportFor(s,c))issues.push(`unsupported:${key(c.x,c.z,c.level)}`);
+  for(const [nx,nz] of adjacent(s,c))if(has(s,nx,nz,c.level))actual.add(edgeKey(key(c.x,c.z,c.level),key(nx,nz,c.level)));
+ }
+ for(const e of actual)if(!['OPEN','PARTITION'].includes(s.edges[e]))issues.push('missing-edge:'+e);
+ for(const [e,v] of Object.entries(s.edges))if(!actual.has(e)||!['OPEN','PARTITION'].includes(v))issues.push('orphan-or-bad-edge:'+e);
+ return {ok:issues.length===0,issues};
+}
+/** FNV fingerprint is a deterministic *comparison label*, NOT a security digest. */
+function fingerprint(value){const s=JSON.stringify(value);let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return (h>>>0).toString(16).padStart(8,'0');}
+function runScenario(steps){
+ let state=initialState(),rejections=[];const trace=[{step:0,fingerprint:fingerprint(derive(state))}];
+ for(let i=0;i<steps.length;i++){
+  const st=steps[i];if(st.type==='ExpectReject'){
+   const before=JSON.stringify(state);
+   try{apply(state,st.operation);fail('EXPECTED_REJECTION_NOT_OBSERVED');}catch(e){
+    if(e.code!==st.code)throw new Error(`step ${i+1}: expected ${st.code}, got ${e.code||e.message}`);
+   }
+   if(JSON.stringify(state)!==before)throw new Error('Rejected operation mutated state');
+   rejections.push({step:i+1,code:st.code});
+  }else{state=apply(state,st);if(!validate(state).ok)throw new Error('Invalid construction state at step '+(i+1));}
+  trace.push({step:i+1,fingerprint:fingerprint(derive(state))});
+ }
+ return {state,model:derive(state),trace,rejections};
+}
+
+return {CONTRACT,COLORS,key,initialState,supportFor,apply,replay,derive,validate,fingerprint,runScenario};
+})();
+__M['scenarios.js'] = (()=>{
+/** Fixed operation sequences; ExpectReject is a test-only wrapper, not a user command. */
+const a=(x,z,level=0,color='PAPER')=>({type:'Add',x,z,level,color});
+const r=(x,z,level)=>({type:'Remove',x,z,level});
+const c=(x,z,level,color)=>({type:'Recolor',x,z,level,color});
+const bad=(operation,code)=>({type:'ExpectReject',operation,code});
+const grid=(x0,z0,w,h,l,color)=>{const out=[];for(let z=z0;z<z0+h;z++)for(let x=x0;x<x0+w;x++)out.push(a(x,z,l,color));return out;};
+const ring=(x0,z0,n,l,color)=>{const out=[];for(let z=z0;z<z0+n;z++)for(let x=x0;x<x0+n;x++)if(x===x0||x===x0+n-1||z===z0||z===z0+n-1)out.push(a(x,z,l,color));return out;};
+const SCENARIOS=Object.freeze({
+ V01:{label:'V01 · 二层紧凑住宅',steps:[...grid(2,2,2,2,0,'PAPER'),...grid(2,2,2,2,1,'PAPER')]},
+ V02:{label:'V02 · 贯通天井与遮盖反例',steps:[...ring(3,3,3,0,'PAPER'),...ring(3,3,3,1,'PAPER'),a(4,4,1),r(4,4,1)]},
+ V03:{label:'V03 · 三层逐层错退',steps:[...grid(2,2,3,3,0,'MIST'),...grid(2,2,2,2,1,'MIST'),a(2,2,2,'MIST'),bad(a(8,8,2),'UNSUPPORTED_ADD')]},
+ V04:{label:'V04 · 跨层操作与拒绝',steps:[a(2,2),a(3,2),a(2,2,1),c(3,2,0,'MIST'),a(4,2,0,'MIST'),bad(r(2,2,0),'SUPPORT_DEPENDENCY'),r(2,2,1),r(2,2,0),a(2,2,0,'SILK'),bad(a(8,8,1),'UNSUPPORTED_ADD')]}
+});
+
+return {SCENARIOS};
+})();
+__M['void-and-circulation.js'] = (()=>{
+/**
+ * R2-V stage 2: independent, read-only semantic probes for 3D vacant air,
+ * support ancestry, and proposed (NOT realized) stair/slab interfaces.
+ * No Authority I/O, geometry claims, user commands, or R1 mutations.
+ */
+const {derive, key, supportFor, validate} = __M['vertical.js'];
+
+const SPATIAL_CONTRACT='ew/ux/r2-v-spatial-probes/candidate-v0.2';
+const DELTAS=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+const xyKey=(x,z)=>`${x},${z}`;
+const decode=k=>{const m=/^(\d+):(-?\d+),(-?\d+)$/.exec(k);if(!m)throw new Error('invalid voxel key');return {level:Number(m[1]),x:Number(m[2]),z:Number(m[3])};};
+const within=(s,x,z,l)=>x>=0&&x<s.width&&z>=0&&z<s.height&&l>=0&&l<s.levels;
+const cellAt=(s,x,z,l)=>s.cells[key(x,z,l)];
+const sortedKeys=s=>[...s].sort((a,b)=>{const x=decode(a),y=decode(b);return x.level-y.level||x.z-y.z||x.x-y.x;});
+
+/** Airspace is an explicit 6-connected 3D voxel graph. Occupied footprint
+ * blocks air at that level; there are NO fictional stairs through occupied
+ * floor-slabs and NO roofing geometry. Top-open air cells are sky sources.
+ */
+function voidTopology(state){
+  if(!validate(state).ok)throw new Error('invalid base state');
+  const empty=new Set();
+  for(let level=0;level<state.levels;level++)for(let z=0;z<state.height;z++)for(let x=0;x<state.width;x++){
+    if(!cellAt(state,x,z,level))empty.add(key(x,z,level));
+  }
+  const neighbors=k=>{
+    const {x,z,level}=decode(k);
+    return DELTAS.map(([dx,dz,dl])=>key(x+dx,z+dz,level+dl)).filter(p=>empty.has(p));
+  };
+  const flood=(seeds)=>{
+    const seen=new Set(),q=[];
+    for(const k of seeds){if(empty.has(k)&&!seen.has(k)){seen.add(k);q.push(k);}}
+    for(let i=0;i<q.length;i++)for(const n of neighbors(q[i]))if(!seen.has(n)){seen.add(n);q.push(n);}
+    return seen;
+  };
+  const skySeeds=[],sideSeeds=[];
+  for(const k of empty){
+    const {x,z,level}=decode(k);
+    if(level===state.levels-1)skySeeds.push(k);
+    if(x===0||z===0||x===state.width-1||z===state.height-1)sideSeeds.push(k);
+  }
+  const sky=flood(skySeeds),outside=flood(sideSeeds);
+  const components=[],remaining=new Set(empty);
+  while(remaining.size){
+    const start=sortedKeys(remaining)[0],q=[start];remaining.delete(start);
+    for(let i=0;i<q.length;i++)for(const n of neighbors(q[i]))if(remaining.delete(n))q.push(n);
+    const sorted=sortedKeys(q);components.push({id:`void:${sorted[0]}`,count:q.length,skyConnected:q.some(k=>sky.has(k)),sideConnected:q.some(k=>outside.has(k)),cells:sorted.map(decode)});
+  }
+  components.sort((a,b)=>a.id.localeCompare(b.id));
+  const roomModel=derive(state);
+  const courtyards=roomModel.courtyards.map(court=>{
+    const cells=court.cells.map(({x,z})=>{
+      const id=key(x,z,court.level);
+      let clear=true;
+      for(let upper=court.level+1;upper<state.levels;upper++)if(cellAt(state,x,z,upper)){clear=false;break;}
+      return {x,z,level:court.level,clearToTop:clear,connectedSky:sky.has(id),connectedSide:outside.has(id)};
+    });
+    const direct=cells.filter(c=>c.clearToTop).length;
+    return {...court,skyProxy:undefined,cells,openColumns:direct,blockedColumns:cells.length-direct,
+      directSky:direct===cells.length?'OPEN':direct===0?'BLOCKED':'PARTIAL',
+      reachableSkyCells:cells.filter(c=>c.connectedSky).length,
+      atmosphericStatus:cells.every(c=>c.connectedSky)?'VENTILATED_TO_SKY':cells.some(c=>c.connectedSky)?'PARTLY_CONNECTED':'SEALED_FROM_SKY',
+      definition:'3D_VACANT_GRAPH_NO_ROOF_GEOMETRY'};
+  });
+  // Link courtyard floor patches only when adjacent VACANT voxels connect in
+  // 3D. A cavity that merely looks over another cavity is not automatically a
+  // stair or a physically occupied interior.
+  const candidates=new Set(courtyards.flatMap(c=>c.cells.map(p=>key(p.x,p.z,p.level))));
+  const shafts=[];
+  while(candidates.size){
+    const start=sortedKeys(candidates)[0],q=[start];candidates.delete(start);
+    for(let i=0;i<q.length;i++)for(const n of neighbors(q[i]))if(candidates.delete(n))q.push(n);
+    const sorted=sortedKeys(q),levels=[...new Set(sorted.map(p=>decode(p).level))].sort((a,b)=>a-b);
+    shafts.push({id:`shaft:${sorted[0]}`,levels,cellCount:sorted.length,
+      reachesSky:sorted.some(p=>sky.has(p)),
+      directSky:sorted.some(p=>{const c=decode(p);return c.level===state.levels-1;}),
+      cellKeys:sorted});
+  }
+  return {contract:SPATIAL_CONTRACT,freeAirCells:empty.size,
+    skyConnectedFreeCells:sky.size,sideConnectedFreeCells:outside.size,
+    voidComponents:components,courtyards,shafts,
+    semantics:'3D_AIR_ONLY; NO_REAL_ROOFS_SLAB_HOLES_OR_STAIRS'};
+}
+
+/** Every stacked occupied interface is a closed slab UNTIL a real opening is
+ * realized. An eligible automatic proposal never silently edits this fact. */
+function slabInterfaces(state){
+  const out=[];
+  for(const c of Object.values(state.cells)){
+    if(c.level===0)continue;
+    const below=cellAt(state,c.x,c.z,c.level-1);
+    if(below)out.push({id:`slab:${key(c.x,c.z,c.level-1)}>${key(c.x,c.z,c.level)}`,
+      lowerUnitId:below.id,upperUnitId:c.id,lowerLevel:c.level-1,
+      position:{x:c.x,z:c.z},status:'SOLID_UNOPENED',holeRealized:false,passable:false});
+  }
+  return out.sort((a,b)=>a.id.localeCompare(b.id));
+}
+
+/** Support source chain is a dependency graph, not a load-bearing proof. */
+function supportLineages(state){
+  if(!validate(state).ok)throw new Error('invalid base state');
+  const memo=new Map();
+  const trace=k=>{
+    if(memo.has(k))return memo.get(k);
+    const c=state.cells[k];if(!c)throw new Error('orphan-support-cell:'+k);
+    const s=supportFor(state,c);
+    if(!s)throw new Error('unsupported:'+k);
+    const branches=s.sources.map(trace);
+    const terminalIds=s.mode==='GROUND'?[c.id]:branches.flatMap(p=>p.terminalGroundUnitIds);
+    const out={cellKey:k,unitId:c.id,level:c.level,mode:s.mode,
+      sourceKeys:[...s.sources],sourceUnitIds:s.sources.map(id=>state.cells[id].id),
+      terminalGroundUnitIds:[...new Set(terminalIds)].sort((a,b)=>a-b),
+      verifiedGeometry:false};
+    memo.set(k,out);return out;
+  };
+  return Object.keys(state.cells).sort().map(trace).sort((a,b)=>a.level-b.level||a.unitId-b.unitId);
+}
+function compareSupportLineages(before,after){
+  const a=new Map(supportLineages(before).map(x=>[x.unitId,x]));
+  return supportLineages(after).filter(x=>a.has(x.unitId)).flatMap(x=>{
+    const prev=a.get(x.unitId);
+    const changed=JSON.stringify([prev.mode,prev.sourceUnitIds,prev.terminalGroundUnitIds])!==JSON.stringify([x.mode,x.sourceUnitIds,x.terminalGroundUnitIds]);
+    return changed?[{unitId:x.unitId,cellKey:x.cellKey,before:{mode:prev.mode,sourceUnitIds:prev.sourceUnitIds,ground:prev.terminalGroundUnitIds},after:{mode:x.mode,sourceUnitIds:x.sourceUnitIds,ground:x.terminalGroundUnitIds}}]:[];
+  });
+}
+
+/** Read-only SYSTEM proposal: require an overlapping 2x2 of units belonging
+ * to one OPEN-connected room on each floor. Never claim PASSABLE. Cannot be
+ * configured by an unauthorized new user command. */
+function stairProposals(state){
+  const model=derive(state),byCell=new Map(),out=[];
+  for(const room of model.rooms)for(const id of room.unitIds){
+    const c=Object.values(state.cells).find(cell=>cell.id===id);
+    if(c)byCell.set(key(c.x,c.z,c.level),room.id);
+  }
+  const locallyConnected=(square,level)=>{
+    const all=new Set(square.map(([x,z])=>key(x,z,level)));
+    const first=[...all][0],seen=new Set([first]),queue=[first];
+    for(let i=0;i<queue.length;i++){
+      const p=decode(queue[i]);
+      for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]]){
+        const n=key(p.x+dx,p.z+dz,level),e=[queue[i],n].sort().join('|');
+        if(all.has(n)&&!seen.has(n)&&state.edges[e]==='OPEN'){seen.add(n);queue.push(n);}
+      }
+    }
+    return seen.size===all.size;
+  };
+  for(let lower=0;lower<state.levels-1;lower++){
+    for(let z=0;z<state.height-1;z++)for(let x=0;x<state.width-1;x++){
+      const square=[[x,z],[x+1,z],[x,z+1],[x+1,z+1]];
+      const group=(level)=>square.map(([xx,zz])=>byCell.get(key(xx,zz,level)));
+      const a=group(lower),b=group(lower+1);
+      if(a.every(Boolean)&&b.every(Boolean)&&new Set(a).size===1&&new Set(b).size===1&&locallyConnected(square,lower)&&locallyConnected(square,lower+1)){
+        const base=key(x,z,lower),above=key(x,z,lower+1);
+        out.push({id:`stair-proposal:${base}>${above}`,lowerLevel:lower,upperLevel:lower+1,
+          lowerRoomId:a[0],upperRoomId:b[0],footprint:square.map(([xx,zz])=>({x:xx,z:zz})),
+          landing:{x,z},source:'DETERMINISTIC_SYSTEM_PROPOSAL',status:'ELIGIBLE_UNREALIZED',
+          upperFloorHoleRealized:false,stairGeometryVerified:false,passable:false,
+          reason:'two overlapping 2x2 OPEN-connected room patches; actual staircase requires structural geometry validation'});
+      }
+    }
+  }
+  return out.sort((a,b)=>a.id.localeCompare(b.id));
+}
+function assessStairRequest(state,request){
+  const invalid=(code)=>({ok:false,code,passable:false});
+  if(!request||!Number.isInteger(request.x)||!Number.isInteger(request.z)||!Number.isInteger(request.lowerLevel))return invalid('INVALID_REQUEST');
+  if(!within(state,request.x,request.z,request.lowerLevel)||request.lowerLevel>=state.levels-1)return invalid('INVALID_REQUEST');
+  const match=stairProposals(state).find(p=>p.lowerLevel===request.lowerLevel&&p.landing.x===request.x&&p.landing.z===request.z);
+  if(!match)return invalid('NO_VALID_2X2_OPEN_CONNECTED_FOOTPRINT');
+  return {ok:true,code:'PROPOSAL_ONLY',proposalId:match.id,passable:false,slabOpeningVerified:false};
+}
+function spatialSnapshot(state){
+  const base=derive(state),space=voidTopology(state),slabs=slabInterfaces(state),support=supportLineages(state),proposals=stairProposals(state);
+  return {contract:SPATIAL_CONTRACT,base,space,slabs,support,proposals,
+    metrics:{rooms:base.rooms.length,verticalContact:base.verticalContacts.length,
+      actualPassages:0,unopenedSlabs:slabs.length,
+      stairProposals:proposals.length,skyVentilatedCourtyards:space.courtyards.filter(x=>x.atmosphericStatus==='VENTILATED_TO_SKY').length,
+      sealedCourtyards:space.courtyards.filter(x=>x.atmosphericStatus==='SEALED_FROM_SKY').length}};
+}
+
+return {SPATIAL_CONTRACT,voidTopology,slabInterfaces,supportLineages,compareSupportLineages,stairProposals,assessStairRequest,spatialSnapshot};
+})();
+__M['extended-scenarios.js'] = (()=>{
+/** Independent additional fixture candidates. No new construction operations. */
+const {SCENARIOS: ORIGINAL} = __M['scenarios.js'];
+const a=(x,z,level=0,color='PAPER')=>({type:'Add',x,z,level,color});
+const r=(x,z,level)=>({type:'Remove',x,z,level});
+const c=(x,z,level,color)=>({type:'Recolor',x,z,level,color});
+const bad=(operation,code)=>({type:'ExpectReject',operation,code});
+const patch=(x0,z0,level,color='PAPER')=>[a(x0,z0,level,color),a(x0+1,z0,level,color),a(x0,z0+1,level,color),a(x0+1,z0+1,level,color)];
+const ring=(x0,z0,w,h)=>{const out=[];for(let z=z0;z<z0+h;z++)for(let x=x0;x<x0+w;x++)if(x===x0||x===x0+w-1||z===z0||z===z0+h-1)out.push(a(x,z));return out;};
+const EXTENDED=Object.freeze({
+  ...ORIGINAL,
+  V05:{label:'V05 · 承托由直托改为桥接',steps:[
+    a(4,4),a(4,4,1),a(3,4),a(5,4),r(4,4,0),
+    bad(r(3,4,0),'SUPPORT_DEPENDENCY'),a(4,4,0,'MIST')
+  ]},
+  V06:{label:'V06 · 自动楼梯候选（未打通）',steps:[
+    ...patch(2,2,0),...patch(2,2,1),c(2,2,1,'MIST'),r(2,2,1)
+  ]},
+  V07:{label:'V07 · 部分遮盖但仍与天空连通',steps:[
+    ...ring(2,2,3,4),a(3,3,1)
+  ]}
+});
+
+return {EXTENDED};
+})();
+__M['explanations.js'] = (()=>{
+/** Step narratives are presentation-only and never affect user build history. */
+const CN={Add:'增加',Remove:'删除',Recolor:'改色'};
+const COL={PAPER:'宣纸白',MIST:'雾青',SILK:'暖绢',MOUNTAIN:'远山灰'};
+const specials={
+ V02:{
+  16:{title:'形成上下两层的开放天井空域',desc:'两个环形建筑分别围出一个内院空格，上下均为空气单元，三维空域直接贯通天空。'},
+  17:{title:'试验性桥接覆盖天井中心',desc:'二层中心新增一个占用单元；下层中心不再向天空连通，属于被覆盖的三维空域。桥接仍是研究承托候选。'},
+  18:{title:'移除中心覆盖，天井重新露天',desc:'二层中心退出占用后，连续的竖向空气通道恢复。'}
+ },
+ V04:{6:{title:'预期拒绝：不可拆除仍承托上层的单元',desc:'试图删除一层 (2,2)，但二层还需要它。拒绝 SUPPORT_DEPENDENCY，建筑保持原样。'},
+      7:{title:'先删除二层，解除下方依赖',desc:'二层 (2,2) 删除后，一层不再承担该上层单元。'},
+      8:{title:'再次尝试，允许拆除一层',desc:'一层 (2,2) 现在能够移除，同时删除它的旧 OPEN 边。'},
+      9:{title:'重建旧位置，产生新的历史边界',desc:'在一层 (2,2) 以暖绢色重建；旁边已变为雾青，故新建 PARTITION，而非恢复旧 OPEN。'},
+      10:{title:'预期拒绝：不能凭空新增二层',desc:'尝试 Add 二层 (8,8)，缺少合法承托。返回 UNSUPPORTED_ADD，网格不变。'}},
+ V05:{
+  1:{title:'建立一层中心柱位',desc:'一层 (4,4) 建造第一个单元。'},
+  2:{title:'建立直托的二层单元',desc:'二层 (4,4) 正好坐在第一层 (4,4) 的承托上，关系为 DIRECT。'},
+  3:{title:'添加一层左侧承托',desc:'一层 (3,4) 新增与中心相邻的支撑候选。'},
+  4:{title:'补上右侧，形成备用两端承托',desc:'一层 (5,4) 新增，左右两端已具备候选桥接条件。'},
+  5:{title:'核心测试：承托路径自动切换',desc:'删除一层中心 (4,4)。二层的单元 ID 保持不变，承托来源从 DIRECT 转为 ONE_BAY_BRIDGE_EW。桥接仅为语义候选。'},
+  6:{title:'预期拒绝：删除剩余桥接端点',desc:'尝试移除一层左侧 (3,4)，将破坏二层的最后候选承托，系统拒绝，状态不变。'},
+  7:{title:'重新加入中心承托，恢复直托',desc:'一层中心重建为雾青新单元，二层重新优先选择 DIRECT；此前被删除的单元身份不会复活。'}
+ },
+ V06:{
+  8:{title:'上下 2×2 连通空间完整',desc:'形成两层相同位置的 2×2 连通房间，系统识别出“可以研究楼梯位置”的候选，但没有楼板孔洞、楼梯几何或实际通行。'},
+  9:{title:'改色后仍保留楼梯候选',desc:'二层一角改色，但原有 OPEN 边持久保留，所以同层房间仍连通；楼梯候选不会仅因为外观色变化而消失。'},
+  10:{title:'上层退掉一格，楼梯候选撤销',desc:'二层 2×2 完整连通空间被破坏，空间不再满足这一轮严格的候选规则。原本的候选被移除；这并不代表真实建筑绝不可能安装其他楼梯。'}
+ },
+ V07:{
+  10:{title:'一层形成两个相连的内院空格',desc:'较长的环形建筑围成两格内院；上层尚未覆盖，两格都直接向天空开放。'},
+  11:{title:'部分遮盖，但空气仍与天空连通',desc:'在二层 (3,3) 增加一格桥接覆盖，下面一格不能直望天空，但可沿旁边仍露天的内院与天空连通。属于 PARTIAL，不是 SEALED。'}
+ }
+};
+function explainStep(sceneId,scenario,step){
+ if(!Number.isInteger(step)||step<0||step>scenario.steps.length)throw new RangeError('invalid step');
+ if(step===0)return {title:'空场景',desc:'尚未执行建造操作；可通过滑块或“下一步”逐条观察占用与空域变化。',status:'initial',target:null};
+ const op=scenario.steps[step-1],r=op.type==='ExpectReject',base=r?op.operation:op;
+ const chosen=specials[sceneId]?.[step];
+ return {
+  title:chosen?.title||(r?'预期拒绝的测试操作':CN[base.type]+'单元'),
+  desc:chosen?.desc||`在 ${base.level+1} 层 (${base.x},${base.z}) ${CN[base.type]||base.type}${base.color?' · '+(COL[base.color]||base.color):''}。${r?'这是预期失败的测试，原状态不变。':'按照现有的持久边与承托规则确定性更新。'}`,
+  status:r?'rejected':'applied',
+  target:{x:base.x,z:base.z,level:base.level,rejected:r},
+  failureCode:r?op.code:null
+ };
+}
+
+return {explainStep};
+})();
+
+
+const {EXTENDED} = __M['extended-scenarios.js'];
+const {runScenario} = __M['vertical.js'];
+const {spatialSnapshot,compareSupportLineages} = __M['void-and-circulation.js'];
+const {explainStep} = __M['explanations.js'];
+const $=id=>document.getElementById(id),palette={PAPER:'#eeeae0',MIST:'#d8e4df',SILK:'#ebdcca',MOUNTAIN:'#d6dce0'};
+const txt=(parent,text,tag='p')=>{const el=document.createElement(tag);el.textContent=text;parent.append(el);return el};
+for(const [id,data] of Object.entries(EXTENDED))$('scenario').add(new Option(data.label,id));
+function render(){
+ const name=$('scenario').value,scene=EXTENDED[name],step=Number($('stepSlider').value);
+ const now=runScenario(scene.steps.slice(0,step)),prev=runScenario(scene.steps.slice(0,Math.max(0,step-1)));
+ const snapshot=spatialSnapshot(now.state),m=snapshot.base,space=snapshot.space,guide=explainStep(name,scene,step);
+ $('counter').textContent=step+' / '+scene.steps.length;$('prev').disabled=step===0;$('next').disabled=step===scene.steps.length;
+ $('explain').classList.toggle('rejected',guide.status==='rejected');$('actionState').textContent=guide.status==='rejected'?'预期失败测试 · 不改变建筑':'本轮第 '+step+' 步';$('actionTitle').textContent=guide.title;$('actionDetails').textContent=guide.desc;
+ $('actionHint').textContent=guide.failureCode?'拒绝代码：'+guide.failureCode:'操作只改变建造状态；诊断由同一状态自动推导。';
+ $('metrics').replaceChildren();for(const [label,value] of [['建筑单元',m.metrics.units],['水平房间',m.metrics.rooms],['天空连通院落',snapshot.metrics.skyVentilatedCourtyards],['完全封闭院落',snapshot.metrics.sealedCourtyards],['楼梯候选',snapshot.proposals.length],['已打通楼梯',snapshot.metrics.actualPassages]]){
+  const box=document.createElement('div');box.className='metric';txt(box,label,'span');txt(box,value,'b');$('metrics').append(box);
+ }
+ const proposals=new Set(snapshot.proposals.flatMap(p=>p.footprint.flatMap(({x,z})=>[`${p.lowerLevel}:${x},${z}`,`${p.upperLevel}:${x},${z}`])));
+ const courts=new Map(space.courtyards.flatMap(c=>c.cells.map(p=>[`${p.level}:${p.x},${p.z}`,p])));
+ $('floors').replaceChildren();for(let level=0;level<now.state.levels;level++){
+  const floor=document.createElement('section');floor.className='floor';txt(floor,['一层','二层','三层'][level]+' · Level '+level,'h3');const grid=document.createElement('div');grid.className='grid';
+  for(let z=now.state.height-1;z>=0;z--)for(let x=0;x<now.state.width;x++){
+   const id=`${level}:${x},${z}`,c=now.state.cells[id],air=courts.get(id),cell=document.createElement('div');cell.className='sq';
+   if(c){cell.classList.add('occ');cell.style.background=palette[c.color];txt(cell,c.id,'span');}
+   if(air){cell.classList.add(air.clearToTop?'sky-open':air.connectedSky?'sky-covered':'sky-sealed');}
+   if(proposals.has(id))cell.classList.add('stair');
+   if(guide.target&&guide.target.x===x&&guide.target.z===z&&guide.target.level===level){cell.classList.add('focus');if(guide.target.rejected)cell.classList.add('reject');}
+   cell.title=`${['一','二','三'][level]}层 (${x},${z})`+(c?' · 单元 #'+c.id:'')+(air?' · '+(air.connectedSky?'可通天':'封闭'):'')+(proposals.has(id)?' · 楼梯候选':'');grid.append(cell);
+  }
+  floor.append(grid);$('floors').append(floor);
+ }
+ $('voids').replaceChildren();if(!space.courtyards.length)txt($('voids'),'当前没有围合的院落空域。');for(const c of space.courtyards){txt($('voids'),`${c.level+1} 层院落 · ${c.area} 格 · 直达天空 ${c.openColumns} 格`);txt($('voids'),`直接视天：${c.directSky}；三维连通：${c.atmosphericStatus}`);}
+ $('supports').replaceChildren();const changes=compareSupportLineages(prev.state,now.state);if(changes.length){for(const v of changes)txt($('supports'),`单元 #${v.unitId}：${v.before.mode} → ${v.after.mode}；地面源 ${v.before.ground.join(',')} → ${v.after.ground.join(',')}`);}else{txt($('supports'),snapshot.support.filter(s=>s.level>0).length?`当前上层单元 ${snapshot.support.filter(s=>s.level>0).length} 个；本步无已存单元承托来源变更。`:'当前无上层承托依赖。');}
+ $('stairs').replaceChildren();if(snapshot.proposals.length){for(const p of snapshot.proposals)txt($('stairs'),`${p.lowerLevel+1}→${p.upperLevel+1} 层位置 (${p.landing.x},${p.landing.z})：${p.status}。真实楼板孔洞 = 否；可通行 = 否。`);}else txt($('stairs'),'暂无满足严格 2×2 连通足迹条件的楼梯候选；不代表其他设计中的楼梯必然不可能。');
+ $('limits').replaceChildren();txt($('limits'),'空域由三维空单元六邻接推导。未生成真实屋顶，因此“通天”属于占用模型的几何代理。');txt($('limits'),'支撑通过上下单元及一跨桥接候选表示；不是力学或真实梁柱安全验证。');txt($('limits'),'楼梯候选既不写入建造历史，也不形成垂直通行边。G-V1 尚开放。');
+ $('diagnostic').textContent='当前操作日志：'+(step?JSON.stringify(scene.steps[step-1]):'空')+' · 结果拒绝数 '+now.rejections.length+' · 三维空域分量 '+space.voidComponents.length+' · 层间界面未开孔 '+snapshot.slabs.length+' · 语义版本 '+snapshot.contract;
+}
+function changeScene(){const s=EXTENDED[$('scenario').value];$('stepSlider').max=s.steps.length;$('stepSlider').value=s.steps.length;render();}
+$('scenario').addEventListener('change',changeScene);$('stepSlider').addEventListener('input',render);$('prev').addEventListener('click',()=>{$('stepSlider').value=Math.max(0,Number($('stepSlider').value)-1);render();});$('next').addEventListener('click',()=>{$('stepSlider').value=Math.min(Number($('stepSlider').max),Number($('stepSlider').value)+1);render();});$('scenario').value='V05';changeScene();
+
+</script></body></html>

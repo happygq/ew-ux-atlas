@@ -1,6 +1,6 @@
 # EW-UX · Current status / 项目最新进度
 
-**最新独立研究候选：** [R2-A 多层几何与开口合同](./docs/R2-A-GEOMETRY-OPENING-CONTRACT-candidate-v0.1.md) · [R2-V 二/三层语义实验](./g1-m2/r2-vertical-v01/)；12/12 本地定向测试通过，**G-V1 仍开放、R2-A 未冻结**。
+**最新独立研究候选：** [R2-V Stage 2：三维空域、承托路径与楼梯候选](./g1-m2/r2-vertical-v02/)（本地 26/26 定向测试；[技术发现](./docs/R2-V-STAGE2-FINDINGS-v0.1.md)）。**G-V1 仍开放、R2-A 未冻结**。第一轮 [R2-V v0.1](./g1-m2/r2-vertical-v01/) 与已验收单层 R1 保持原状。
 
 **2026-11-10 R1 收口**：当前工作状态见 [PROJECT-STATUS](./docs/PROJECT-STATUS.md)，逐项关口见 [ACCEPTANCE-GATES](./docs/ACCEPTANCE-GATES.md)，当前进度表归档见 [progress CSV](./docs/progress/EW-UX-Progress-2026-11-10-R1.csv)。[CS–CY–IW–DW R1 预览](./g1-m2/cs-cy-iw-dw-r1/) 已获用户对**单层研究交互与示意视觉**的确认；**二/三层尚未验证**，真实孔洞/屋面和结构承托也未验收。新增 [R2-V / R3-V 多层验证计划](./docs/MULTISTORY-VALIDATION-PLAN-v0.1.md)。
 
