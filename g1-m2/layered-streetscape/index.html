@@ -25,7 +25,7 @@ const streetMode=()=>['BALANCED','HERO','DENSE'].includes(mode);
 const titles={BALANCED:['均衡层叠 · 三排屋体','前景引导 / 中景主墙 / 后景呼应'],HERO:['主墙突出 · 中景主角','两面高墙作为视觉焦点'],DENSE:['密集鳞次 · 村落片段','十栋屋体 / 受控横向错动'],T_FIX:['T 形端墙 · 世界轴镜像','同一主翼两端，完整的镜像轮廓'],U_FIX:['U 形庭院 · 两翼降级','开口双翼低一级，主端墙保持完整']};
 const asset=()=>"./preview-balanced-street.png";
 const status=x=>{$('status').hidden=!x;$('status').textContent=x||''};
-try{renderer=new Renderer($('canvas'));renderer.shared.platform.positions=[];renderer.shared.top.positions=[];renderer.shared.shadows=[];$('renderer').textContent='WebGL2 · 实时几何'}catch(e){renderer=null;$('renderer').textContent='静态网格回退';status('当前环境未启用 WebGL2。构图按钮仍可切换默认渲染图；动态参数需要支持 WebGL2 的浏览器。')}
+try{renderer=new Renderer($('canvas'));renderer.shared.platform.positions=[];renderer.shared.top.positions=[];renderer.shared.shadows.forEach(mesh=>{mesh.positions.length=0;mesh.normals.length=0;mesh.count=0;});$('renderer').textContent='WebGL2 · 实时几何'}catch(e){renderer=null;$('renderer').textContent='静态网格回退';status('当前环境未启用 WebGL2。构图按钮仍可切换默认渲染图；动态参数需要支持 WebGL2 的浏览器。')}
 function getControls(){return {composition:mode,depthGap:Number($('gap').value),stagger:Number($('stagger').value),heightContrast:Number($('contrast').value)}}
 function camera(){if(!renderer)return; if(streetMode()){
  const dense=mode==='DENSE';renderer.target=[-1.75,1.82,1.15];
@@ -56,7 +56,7 @@ function showScene({newScene=true}={}){
   if(!renderer&&!streetMode())status('静态回退仅展示 A 的默认网格画面；T/U 镜像请通过 WebGL2 或交付的实际网格截图复核。');
   else if(!renderer)status('此为 A 的基准静态网格；B/C及相机、滑块需 WebGL2 才能真实更新画面。');
   else status('');
- }catch(e){console.error(e);$('contract').textContent='FAIL';status(e.message)}
+ }catch(e){console.error(e);$('contract').textContent='FAIL';$('stage').classList.remove('running');if(renderer){renderer=null;$('canvas').style.display='none';}status('实时渲染未成功，已切回实际网格静态预览：'+e.message)}
 }
 function changeMode(next){mode=next;view='oblique';rows='all';showScene()}
 document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>changeMode(b.dataset.mode));
@@ -65,5 +65,5 @@ for(const id of ['front','middle','back','all'])$(id).onclick=()=>{if(!streetMod
 for(const id of ['gap','stagger','contrast'])$(id).addEventListener('change',()=>{rows='all';showScene()});
 $('reset').onclick=()=>{rows='all';camera();showScene({newScene:false})};
 $('save').onclick=()=>{if(renderer){try{const a=document.createElement('a');a.href=$('canvas').toDataURL('image/png');a.download=`EW-UX-G205A-${mode}.png`;a.click();return}catch(e){}}window.open(asset(),'_blank')};
-showScene();function loop(ms){if(renderer&&ms-lastFrame>130){renderer.render();lastFrame=ms}requestAnimationFrame(loop)}requestAnimationFrame(loop);
+showScene();function loop(ms){if(renderer&&ms-lastFrame>130){try{renderer.render();lastFrame=ms}catch(e){console.error(e);renderer=null;$('stage').classList.remove('running');$('canvas').style.display='none';$('renderer').textContent='静态网格回退';status('实时画面已切换为静态预览：'+e.message)}}requestAnimationFrame(loop)}requestAnimationFrame(loop);
 </script></body></html>
