@@ -44,6 +44,49 @@
 5. 每条自动生成的意图及依赖源可以追溯到具体原始单元 ID 与决策来源；策略变化需说明旧回放影响。
 6. 独立技术审查明确接受范围、尚缺的 G-V2 实体证据及未解决的 Q 项。**用户或审查负责人明确批准后**才能请求关闭 G-V1 / 冻结 R2-A。
 
+## 3A. G-V1 P0 · 可执行语义 Witness 规格（B1/B2/B3/B4/B6）
+
+> **NOT RUN / TEST SPECIFICATION ONLY**。以下是必须在 R2-V3-A/B/C/D 中实现的**新**定向回放；并非已经通过的 26/26。候选错误码与字段名不是现有 API。任何“拒绝”必须保证世界可见状态、ID 计数及有效意图不变；“有效降级/暂停”是合法编辑引起的状态变化，不能混称为操作拒绝。
+
+**统一记录封套**：每份 Witness 必须记录 (a) 初始世界版本/fixture 的明确 provenance；(b) 完整 ConstructionLog 的有序 Add/Recolor/Remove 前缀；(c) 通过 proposalId 与 inputPrefix 绑定的 DecisionLog（若存在）；(d) 使用的规则/策略版本和规范排序；(e) 每步 Occupancy3D、VolumeFragment/BoundaryPatch、Space/VoidRegion、SupportGraph、PassageGraph 的实际存在对象快照；(f) 结果/拒绝码及前后字节比较、未受影响 ID 稳定性；(g) 可独立重放的规范记录。fixture 直接注入的语义对象只能作为**单独标注的模型级单元验证**，不可冒充三操作与确认流程的可达性证明。
+
+| G-V1 P0 场景 | 最小正例与来源 | 必须有的负例或失效过程 | 应断言的核心结果 |
+|---|---|---|---|
+| **T02** | 同一 ConstructionLog 建直叠/错退；已获准的 Direct/Ground 来源链和版本化规则 | 无支持上层 Add；删除唯一必需根而没有获准 OR 方案 | 拒绝时 `REJECT_SUPPORT_UNRESOLVED`（候选码），状态字节不变；Room/Floor 身份与 CONTACT_ONLY 不被转为通行 |
+| **T03** | 固定 Add 历史 + 经确认 `DOUBLE_HEIGHT + COVERED_OPAQUE`，生成封闭跨层 SpaceRegion3D | 相同占用但无空间/屋盖决策；或封顶却被标为 directSky | 无决策 `PENDING_CHOICE`；确认后 `directSky=false, airConnectedSky=false`，室内连通只经过明确开放界面 |
+| **T04** | 围合 Add + 被确认的竖向 OPEN_COURT / OPEN_TO_SKY 选择，产生多层 VoidRegion | 同址上层楼板界面封闭，却把空气连接至 SKY_EXTERIOR；或把空气通风误当人流 | closedPatch.airOpen=false 时无空域边；人员 Passage 不从空气图自动生效 |
+| **T06** | 使用与 T03 **相同 ConstructionLog/占用**，不同的已存 `OPEN_COURT + OPEN_TO_SKY` 决策；再由被确认的 COVERED_TRANSLUCENT 意图衍生屋盖 | 同占用无决策任意判定封顶；透明封顶时 airConnectedSky=true；局部盖檐就认定全院密闭 | 区分 directSky、airConnectedSky、roofClosed、daylightProxy（后者仅候选）；状态更改有决策事件溯源，不允许裸插入 RoofBoundary |
+| **T07** | 同层操作 + 系统楼梯 Proposal→权限/身份确认→ApprovedIntent，抽象开口与两端一致；另测取消/重新确认 | 单一 2×2 提案静默批准；端点失效/跨私密域；过期前缀确认；Remove 后幽灵楼梯 | 正例 `abstractRouteAuthorized=true, physicalPassable=false`；失效时 SUSPENDED/INVALIDATED，旧批准不能自动复活；错误提交原子拒绝 |
+| **T08** | Add 建上层跨巷体量 + 已批准两端 Passage 意图 + SupportGraph AND 源；下方 Void 存在 | 单端桥、未批准承托候选或把下方空气填实；“桥有承托所以可通行” | 支持图/人员通行图/空气图三图独立；几何净空和实体桥后置 |
+| **T10** | S04/S05/S06 分别有不同柱脚源，AND 必需源与获准 OR 备选；记录替换来源 ID | 删除一项必需柱且无合法备选；屋顶柱脚误记为 GROUND；用 Stage2 ONE_BAY_BRIDGE 候选冒充获批方案 | 无备选拒绝且状态不变；有备选更新支持来源且上层 unitId 不变；全部普通路径根节点有效 |
+| **T11（限定）** | 普通下层支持明确缺失时执行无根上层 Add | 企图自动改成 S11 幻想漂浮或仅凭普通候选允许提交 | `REJECT_SUPPORT_UNRESOLVED`，fantasyGranted=false，拒绝不修改世界 |
+| **T12** | Add→Recolor→Remove→Add + SpaceIntent/StairDecision 全序；Region 拆分、合并、再拆分，检查已批准意图的依附关系 | 相同 eventId 不同 payload、旧前缀、乱序重放；删除后旧 Room/Boundary ID 被错误复活；无关楼梯跳位 | 幂等同载荷；冲突及非法世界操作原子拒绝；已失效意图不复活；无关 IDs/事实稳定；版本化重放字节一致 |
+
+**跨场景强制组合 W-00（B1）**：T03 与 T06 提供完全相同的 Occupancy3D 与 ConstructionLog 字节，但两个不同且明确记录的 DecisionLog，结果合法而不同；第三份缺失决策时只可得到 PENDING_CHOICE，不得靠当前颜色自动选空间类型。此要求用于证明差异**可由用户授权过程创作**，而不是靠研究者手工伪造世界状态。
+
+**验证层级**：
+
+- **Semantic Witness**：合法构造历史 + 必要轻量确认 + 确定性策略 → `SEMANTIC_VALID` / `PENDING_CHOICE` / `REJECTED` 等，附当前有效的 `abstractRouteAuthorized` 和 `physicalPassable=false`。不得把 Stage2 的 `SOLID_UNOPENED` 视为真实开孔。
+- **Geometry Witness**：后续 R2-B/C、R3-V/G-V2 对墙、楼板、楼梯实体、柱梁源位置、交汇和排水产生独立证据；即使具几何验证也不能宣称建筑工程法规认证。
+- **Owner Visual Witness**：R4 不同楼层与三视角真实设备体验，不能由上述两级代签。
+
+## 3B. 八项原始场景未显式映射类型的追踪处置（B5）
+
+原始 T01–T12 的类型关联不改写，最初明确覆盖 **40 / 48** 个追踪 ID。下表八项作为**二级关联或明确延期项**补全 48/48 的规划追踪，不代表新增场景已通过；Coverage Matrix 的 48 项新列给出完整逆向映射。
+
+| 类型 ID | 二级场景引用 | 验证边界 |
+|---|---|---|
+| H03 | T01/T12 | 同层复杂 RoomRegion 组合可复用既有语义；L/T/U 真实墙屋顶 G-V2 |
+| H04 | T05 | 非正交边界专门延期，T05 不要求 G-V1 实现斜角 |
+| V03 | T02 | 半层及不等层高延期至标高专项，非 G-V1 必证 |
+| V06 | T02/T12 | 多层占用/身份 G-V1 增量；真实高低接缝 G-V2 |
+| P01 | T01/T05 | 入口链需 G-V1 授权语义增量；真门洞 G-V2 |
+| S01 | T02/T10 | Ground/Foundation 作为支持图基础根的正反例 |
+| R01 | T06 | 屋盖封闭为 G-V1 抽象边界，实际屋坡形态 G-V2 |
+| R04 | T06/T12 | 屋顶露台的使用/支撑/通行/防水属于 G-V2，不可从 RoofClosure 推导 |
+
+**B5 接受阈值**：48 个 ID 均有原始 T 关联或上表明确归属；Deferred 有技术理由和未来 Gate，未新增“未审查即接受”项。独立评审仅核对增量，不重复冻结 R1。
+
 ## 4. G-V2 明确保留的独立验收
 
 - 二/三层真实楼板、已批准开孔与梯级、踏步/转角/平台/净空、门洞门槛与柱梁互不穿透。
