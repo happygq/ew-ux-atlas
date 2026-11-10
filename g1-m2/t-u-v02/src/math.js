@@ -1,0 +1,14 @@
+export const PI = Math.PI;
+export const V = (x=0,y=0,z=0)=>[x,y,z];
+export const add = (a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]];
+export const sub = (a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+export const mul = (a,s)=>[a[0]*s,a[1]*s,a[2]*s];
+export const dot = (a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+export const cross = (a,b)=>[a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+export const norm = a=>{const n=Math.hypot(...a)||1;return a.map(v=>v/n)};
+export const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+export const lerp=(a,b,t)=>a+(b-a)*t;
+export const hash=(s)=>{let h=2166136261;for(const c of String(s)){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0};
+export const noise=(seed)=>hash(seed)/4294967295;
+export const rounded=(n,p=6)=>Math.round(n*10**p)/10**p;
+export const vecNear=(a,b,e=1e-6)=>a.length===b.length&&a.every((v,i)=>Math.abs(v-b[i])<=e);
