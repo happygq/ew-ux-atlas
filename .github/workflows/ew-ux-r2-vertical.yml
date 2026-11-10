@@ -1,0 +1,19 @@
+name: EW-UX R2-V semantic candidate
+on:
+  push:
+    paths:
+      - 'g1-m2/r2-vertical-v01/**'
+      - '.github/workflows/ew-ux-r2-vertical.yml'
+  workflow_dispatch:
+jobs:
+  semantic-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run isolated vertical semantic fixtures
+        working-directory: g1-m2/r2-vertical-v01
+        run: npm test
