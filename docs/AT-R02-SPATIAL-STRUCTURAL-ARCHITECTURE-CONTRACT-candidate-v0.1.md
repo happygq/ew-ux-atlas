@@ -155,9 +155,9 @@
 | 楼梯/门洞 | 系统按建筑身份/用途/许可与抽象界面提出 OpeningProposal | 默认只有候选；审批决策独立持久化 |
 | 跨院/跨巷承托 | 已批准的抽象 SupportPattern | 没有已准入模式则普通提交拒绝；仅候选不能冒充支持 |
 
-轻量确认是附属于现有动作结果的**意图决策事件**（非第四种基础建造动作），记录 decisionId、proposalId、scope、inputPrefix、policyVersion、authorizer、choice。未解决歧义时可保留清楚标注的可回退研究中间态，但**不发布为完成的合法多层建筑**。
+轻量确认是附属于现有动作结果的**意图决策事件**（非第四种基础建造动作），记录 decisionId、proposalId、scope、inputPrefix、policyVersion、authorizer、choice。未解决歧义时仅能保留隔离的、可撤销的 **provisional draft/ghost preview**，不得提交为 canonical ConstructionLog 或已准入的 Occupancy3D；完成建造和决策应原子发布（详见 F1）。
 
-**强制反例 T03/T06**：使用**完全相同的 ConstructionLog 和最终格子占用**。A 的已记录决策为 DOUBLE_HEIGHT + COVERED_OPAQUE，结果是封顶的室内跨层 SpaceRegion；B 的已记录决策为 OPEN_COURT + OPEN_TO_SKY，结果是露天庭院空域。两者都可有条件合法，必须经不同有效 DecisionLog 重现。第三份没有决策的日志必须保持 PENDING_CHOICE，不得任意猜测。RoofBoundary 只能由已记录的策略/决策派生，禁止直接合成后宣称操作可达。
+**强制反例 T03/T06**：使用**完全相同的 ConstructionLog 和最终格子占用**。A 的已记录决策为 DOUBLE_HEIGHT + COVERED_OPAQUE，结果是封顶的室内跨层 SpaceRegion；B 的已记录决策为 OPEN_COURT + OPEN_TO_SKY，结果是露天庭院空域。两者都可有条件合法，必须经不同有效 DecisionLog 重现。第三份相同的**待提交建造请求**若没有决策，必须保持 staging-only 的 PENDING_CHOICE，不能形成正式 ConstructionLog/Occupancy3D；不得任意猜测。RoofBoundary 只能由已记录的策略/决策派生，禁止直接合成后宣称操作可达。
 
 **最小体积与界面（Q-01）**：网格是索引，不是实心材料；单格可以有互不重叠的 SOLID 柱分片与 INTERIOR_AIR、EXTERIOR_AIR 或 RESERVED_VOID 分片。VolumeFragment 使用有限、有界、规范排序的空间子片，真实布尔网格属于 G-V2。BoundaryPatch 必须有规范界面坐标、两侧 fragment ID、唯一 owner、kind、airOpen、humanOpeningIntent、realizationEvidence。相邻两格同一真实面仅能有一个逻辑主人；局部开孔拆为互不重叠子片，未变化子片 ID 保留。天空与世界外界使用显式 SKY_EXTERIOR / OUTSIDE_WORLD 端点，而非“最高层空格”代理。透明天窗可以 daylightProxy=POTENTIAL，但 airOpen=false；采光代理不等于实际照度。
 
@@ -220,6 +220,39 @@ unitId 仅 Remove→Add 更新，BuildingIdentity 只能按已批准的分组意
 | B6 | Gate Matrix 逐能力正反例 | G-V1 证据清单与 G-V2 边界 |
 
 **Q-01～Q-06 至此均有候选处置，但尚未完成独立技术复核与冻结。**
+
+### F1 · PENDING_CHOICE 事务与准入边界（Final Contract Clarification）
+
+**规范性决定：PENDING_CHOICE 不是已提交的建造状态。** 同一建造请求涉及尚未解决的 SpaceUse、BuildingIdentity、楼板缺失或 RoofClosure 选择时，明确区分如下两层：
+
+| 层级 | 存放与可见性 | 是否具有正式建造效力 | 能否被下一次操作作为依赖 |
+|---|---|---|---|
+| `PROVISIONAL_DRAFT / PENDING_CHOICE` | 客户端或独立 staging 记录；可显示 ghost/preview，绑定原始请求、候选及 expected committed head | **否**：不追加 canonical ConstructionLog，不发布 ConstructionCell/unitId、已准入 RoomRegion/BuildingIdentity/SupportGraph/PassageGraph/BoundaryPatch | **否**：不得为后续 Add 提供承托、空间边界或通行证据；不得算作已使用的正式占用格 |
+| `SEMANTICALLY_ADMITTED` | 原子提交后的 canonical event stream + world projection | **是**：经授权和全部跨图约束检验的建造操作及必要 DecisionLog 同时进入正式状态 | **仅能在相应语义准入/权限约束内**被后续操作引用，不能推导为 G-V2 物理认证 |
+
+**事务协议：** (1) Add/Recolor/Remove 提案进入 staging → (2) 若策略无法唯一确定空间语义，返回 `PENDING_CHOICE`，正式世界保持逐字节不变、没有正式 unitId/RegionId 被消耗 → (3) 确认事件或已有明确授权的 versioned policy 决策产生 → (4) 对原请求的 `expectedPrefix`、候选、授权范围、BuildingIdentity/SpaceUse、所有承托/通行依赖重新检查 → (5) **同一原子事务**追加该建造事件与必要的空间决策事件（两个事件各有全序 `eventSeq`，共享 `transactionId`；仅事务完整成功后公开投影与 ID）→ (6) 整体发布 `SEMANTICALLY_ADMITTED`。若确认、前缀、提交或跨图检查失败，**全部回滚**，无 ConstructionCell/Support/Passage 半发布，也不消耗正式 ID/序号；候选审计如需持久化，应在独立 staging 范围，不代表世界提交。
+
+待确认期间的其他用户操作只作用于已提交世界；即使影响范围不交叉，确认时也必须重新验证草稿前缀。此前缀一旦不匹配，**不得自动重绑定或悄悄重排**，而应将草稿标为 stale、重新建议/确认。取消草稿仅丢弃 staging，不写 canonical ConstructionLog。依赖该草稿的连环 Add 不能先获得合法准入；可以在 UI 中排队候选，但不得以尚未存在的支撑源通过正式校验。
+
+**T03/T06 同占用证明语义修正：** A、B 使用相同的**已接受 ConstructionLog 字节**和相同最终格子集合，但各自一次原子提交内携带不同、明确已批准的 Space/Roof DecisionLog，所以导出不同封顶/露天结果。C 使用同样的**拟提交输入序列**但缺少必需选择，停在 staging 的 PENDING_CHOICE；C **不是**已有同样已提交 ConstructionLog 的第三个有效世界。不得把人工注入的 RoofBoundary 或临时草稿用作正式成功证据。
+
+### F2 · 自动楼梯失效的事件归属（Final Contract Clarification）
+
+**规范性决定：由合法 ConstructionLog 编辑引起的 SUSPENDED/INVALIDATED 是该建造事务内的确定性派生投影，而不是另一条独立的 DecisionLog 事件或新的 `eventSeq`。** 其来源必须能由引发它的 `constructionEventId / transactionId / policyVersion` 追溯；可以在世界快照、诊断或只读派生审计中记录 `derivedCause`，但此记录不成为第二个权威重放输入。
+
+| 情形 | 权威日志归属 | 同一事务的结果 |
+|---|---|---|
+| Remove 删除楼梯端点或其绑定 Region/Boundary 身份 | 仅 **一条 ConstructionLog Remove** 取得 eventSeq；其事务内推导相应意图 **INVALIDATED** | 若编辑本身允许，原子发布 Remove + 派生失效 + PassageGraph 断边；若触犯必须保持的通行约束，则整个 Remove 拒绝，所有事实不变 |
+| Recolor / Add / Remove 使已批准支持、权限或临时空间约束暂时不成立，但原绑定身份仍保留 | 仅对应 ConstructionLog 事件取得 eventSeq；派生 **SUSPENDED** | 一次原子发布新世界、不可用通路及可重建的失效原因；不生成新的 APPROVE/WITHDRAW |
+| 用户主动 WITHDRAW / DECLINE | 独立明确的 **DecisionLog 事件**，进入全序 eventSeq | 原子发布该决策和相关通行状态；不把它伪造成自动衍生 |
+| 用户 REAPPROVE | 新的 **DecisionLog 事件**，绑定当前已提交 world prefix，重新验证同一 intent 的身份/端点/权限 | 满足前提才可恢复 ACTIVE；对 **INVALIDATED 且身份退役**的情形必须重新 PROPOSE/APPROVE，新 intentId，不得复活旧 ID |
+| 已明确允许的策略自动审批 | 明确的 **版本化 policy authorization 决策证据**须作为 DecisionLog 事件计入全序 | 不能靠 UI 唯一候选或 Remove 的副作用隐式授权 |
+
+**事件边界与幂等性：** `eventSeq` 只分配给已成功持久提交的权威 Construction/Decision 事件；同一用户意图携带相同 `eventId + payload` 的重复提交仅幂等返回已提交结果，不生成第二个失效事件、不重复消耗序号。相同 ID 不同载荷/旧前缀/乱序操作须拒绝且世界字节不变。自动状态降级与建造结果同一隔离评估、同一事务发表；重放时按原全序和冻结的 policyVersion 重新计算，即使派生诊断记录被丢弃，也必须得到一致的 `ACTIVE/SUSPENDED/INVALIDATED` 与 PassageGraph。先前的 Approval/Realization 证据仍是不可变历史，但当前失效时 `abstractRouteAuthorized=false`、`physicalPassable=false`，不得因证据曾存在而继续宣称可通行。
+
+**T07/T12 对应验证增量：** T07 包括合法 Remove 自动暂停/失效与主动 Withdraw（仅后者增加 DecisionLog eventSeq）、失效后单纯 Add 不能自动恢复、重新批准要记录新 decision event；T12 包括 Remove 与派生失效的事务原子性、恢复重放只从权威事件推导、重复同 payload 不增序号/派生事件、旧 prefix/冲突事件不改变世界。无须重做 T01–T12 全量规格，也不要求现在执行这些测试。
+
+> 本节 F1/F2 为本轮**合同候选补充**；不构成实际程序实现或 G-V1 Gate 通过。其余 B1–B6 和 48 类型矩阵保持原结论，等待独立的 F1/F2 差异核对。
 
 ## 8. 核对依据
 
