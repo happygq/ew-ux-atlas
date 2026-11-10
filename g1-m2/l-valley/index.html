@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#20362f">
+<title>EW-UX · G1-M2 / Stage 02 · L 形屋面阴角与排水验证</title>
+<style>
+:root{--ink:#24382f;--cream:#f7f2e8;--muted:#766c60;--line:#dbd0c1;--green:#294f41;--clay:#9c7952}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#eee7dc;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft Yahei",sans-serif}
+header{background:#20362f;color:#f8f3e9;padding:20px max(16px,calc((100vw - 1440px)/2));padding-left:clamp(18px,4.3vw,56px);padding-right:clamp(18px,4.3vw,56px);display:flex;align-items:center;justify-content:space-between;gap:16px}
+.logo{font:700 24px Georgia,serif;letter-spacing:.08em}.logo span{color:#ceb99e;font-weight:400}.sub-brand{letter-spacing:.16em;font-size:10px;margin-top:7px;color:#a9bfae}header a{color:#e4e1ce;text-decoration:none;font-size:12px;border-bottom:1px solid #839687;white-space:nowrap}
+main{max-width:1400px;margin:auto;padding:27px clamp(13px,3vw,34px) 40px}
+.heading{display:flex;justify-content:space-between;align-items:start;gap:15px;margin-bottom:19px}.kicker{font-size:11px;letter-spacing:.17em;color:#9b7552;font-weight:700}.heading h1{font:400 clamp(26px,3vw,39px)/1.25 Georgia,"Songti SC",serif;margin:8px 0}.heading p{font-size:13px;line-height:1.6;color:var(--muted);margin:4px 0}.gate{padding:8px 12px;border:1px solid #c7b99d;border-radius:50px;font-size:11px;color:#885e33;background:#f8f1e5;white-space:nowrap}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 296px;gap:16px;align-items:stretch}.viewport{position:relative;height:min(65vw,600px);min-height:505px;background:radial-gradient(ellipse at 52% 24%,#fffef9 0,#eee2d2 62%,#dacbb9 100%);border:1px solid var(--line);border-radius:10px;overflow:hidden}.viewport canvas,.viewport img#fallback{position:absolute;inset:0;width:100%;height:100%;display:block}.viewport canvas{z-index:2;touch-action:none;cursor:grab}.viewport img#fallback{z-index:1;object-fit:contain;pointer-events:none}.viewport.running img#fallback{display:none}
+.scene-text{position:absolute;z-index:3;left:20px;top:18px;max-width:72%;pointer-events:none;text-shadow:0 2px 13px #fffdf8}.scene-text .num{font:italic 15px Georgia,serif;color:#a98255}.scene-text h2{font:400 clamp(18px,2vw,26px) Georgia,"Songti SC",serif;margin:6px 0}.scene-text p{font-size:11px;color:#7c7064;margin:0}
+.overlay-badge{position:absolute;right:14px;top:18px;z-index:4;font-size:10px;padding:7px 10px;border-radius:28px;background:#f6f5edcc;border:1px solid #aebdac;color:#526c5c;max-width:160px;text-align:right}.toolbar{position:absolute;z-index:5;bottom:14px;left:14px;right:14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}.toolbar button{border:1px solid #b7b0a0;background:#fcf9f0e8;color:#3b4d41;border-radius:5px;padding:9px 12px;font-size:12px;white-space:nowrap;cursor:pointer}.toolbar button.active{background:#2d4b40;color:#f9efe1;border-color:#2d4b40}
+aside{border:1px solid #e0d7ca;border-radius:10px;background:#faf7f0;padding:24px 22px}.aside-label{font-size:10px;letter-spacing:.14em;color:#648375;font-weight:700}aside h3{font:400 21px Georgia,"Songti SC",serif;margin:10px 0 9px}aside p{font-size:12px;color:#797166;line-height:1.67;margin:0 0 14px}.spec{border-top:1px solid #e2d9cc;padding:10px 0;display:flex;justify-content:space-between;gap:10px;font-size:11px;color:#766b5e}.spec strong{font:normal 15px Georgia,serif;color:#2c4f3d;text-align:right}.spec:nth-of-type(2){border-top:1px solid #e2d9cc}.note{font-size:11px!important;background:#f6eee0;border-left:3px solid #bc986a;padding:11px 12px;margin-top:20px!important}.checks{font-size:12px;line-height:1.9;padding-left:19px;color:#51594f}.checks li{margin:4px 0}.detail{margin:16px 0 8px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.mini{background:#f7f2e9;border:1px solid #e0d7ca;border-radius:8px;padding:14px 17px}.mini .caption{font-size:10px;letter-spacing:.1em;color:#99836d}.mini strong{display:block;margin:6px 0 0;font:normal 19px Georgia,serif;color:#314f40}.foot{margin-top:20px;border-top:1px solid #d6cbbb;padding-top:17px;display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;color:#81786e;font-size:11px;line-height:1.6}.foot a{color:#3d6251;text-decoration:none;border-bottom:1px solid #a5b3a1}
+@media(max-width:860px){header{padding:16px}.logo{font-size:21px}.grid{display:block}.viewport{height:62vh;min-height:390px;max-height:600px}.scene-text{top:14px;left:12px;max-width:68%}.overlay-badge{top:15px;right:8px;font-size:9px}.toolbar{bottom:8px;left:8px;right:8px;gap:5px}.toolbar button{padding:9px 8px;font-size:11px}aside{margin-top:13px;padding:21px}.heading{margin-bottom:15px}.heading h1{font-size:27px}.heading .gate{white-space:normal;text-align:right;min-width:86px}.detail{grid-template-columns:1fr 1fr}.detail .mini:last-child{grid-column:1/-1}}
+@media(max-width:420px){.heading h1{font-size:25px}.viewport{min-height:440px}.toolbar button{font-size:10px;padding:9px 6px}.scene-text h2{font-size:18px}.overlay-badge{max-width:110px}}
+</style></head><body>
+<header><div><div class="logo">EW <span>/ RESEARCH ATLAS</span></div><div class="sub-brand">PARAMETRIC ARCHITECTURE · HUIZHOU FANTASY</div></div><a href="../../">← 已验收 G1-M1</a></header>
+<main>
+ <div class="heading"><div><div class="kicker">G1-M2 / STAGE 02 — UX-G203</div><h1>L 形屋面 · 阴角谷线与接缝</h1><p>两条正交屋脊共同生成一个真正的转角：瓦片裁切、斜脊转接、V 形排水及内角落水。</p></div><span class="gate">研究候选 · 待视觉验收</span></div>
+ <div class="grid"><section class="viewport" id="stage"><img id="fallback" src="./preview-balanced-overall.png" alt="L 形徽派灰瓦建筑参数化网格实际渲染静态回退"><canvas id="canvas" aria-label="G1-M2 L 形屋面三维研究视窗"></canvas>
+ <div class="scene-text"><div class="num" id="study">STUDY — 01 / 02</div><h2 id="title">标准 L 形 · 屋面阴角</h2><p id="subtitle">真实几何裁切 · 共用折线谷口 · 双山墙</p></div><span class="overlay-badge" id="renderer">◌ 3D 初始化 / 静态回退</span>
+ <div class="toolbar"><button class="active" id="balanced">标准 L</button><button id="extended">延长主翼</button><button id="overall" class="active">整体</button><button id="detail">阴角特写</button><button id="guides">谷线标识</button><button id="tiles">移除瓦层</button><button id="reset">重置</button><button id="save">PNG</button></div></section>
+ <aside><div class="aside-label">L-VALLEY BOUNDARY CONTRACT / V0.1</div><h3>连接与排水验收</h3><p>屋面不是两块未裁切的屋顶相互穿透。对角分区的同一条接缝，在外角形成斜脊，在内角形成排水谷线。</p>
+ <div class="spec"><span>数学接缝 / 共享顶点</span><strong id="vertex">—</strong></div><div class="spec"><span>谷线向庭院净下降</span><strong id="drop">—</strong></div><div class="spec"><span>排水路径平均坡度</span><strong id="slope">—</strong></div><div class="spec"><span>外角斜脊 / 内角谷线</span><strong id="joint">—</strong></div><div class="spec"><span>几何网格三角面</span><strong id="triangles">—</strong></div><div class="spec"><span>契约验证</span><strong id="contract">初始化</strong></div>
+ <h3 style="font-size:18px;margin-top:23px">本轮重点审查</h3>
+ <ol class="checks"><li>谷线从两屋脊交点连续向庭院下降</li><li>阴角瓦面由两侧裁切，不穿模、不留可见露底</li><li>外角斜脊与内角水谷是不同构件</li><li>檐口与木构沿 L 形外缘连续，内角有排水出口</li></ol>
+ <p class="note">本页是 Stage 02 候选研究实现。自动几何测试不构成视觉验收；任意角度、T/U 形和完整流体排水仍未实现。</p></aside></div>
+ <div class="detail"><div class="mini"><span class="caption">CURRENT GATE</span><strong>G203 · 待视觉验收</strong></div><div class="mini"><span class="caption">GEOMETRY TESTS</span><strong>16 / 16 PASS</strong></div><div class="mini"><span class="caption">AUTHORITY</span><strong>Read-only · 隔离</strong></div></div>
+ <div class="foot"><div>EW-UX independent research · 仅 Stage 02 候选，G1-M1 / Stage 01 均保持不变。</div><div><a href="../">← G1-M2 Stage 01 已验收</a></div></div>
+</main>
+<script type="module">
+import {Renderer,CanvasRenderer} from './src/webgl.js';
+import {buildLValley} from './src/l-valley.js';
+import {Mesh} from './src/mesh.js';
+const $=name=>document.getElementById(name);
+let renderer=null,model=null,variant='balanced',view='overall',showGuide=false,hideTiles=false,renderAt=0;
+const variants={balanced:{mainLength:5.6,wingLength:5.15},extended:{mainLength:7.1,wingLength:4.6}};
+const preview=()=>`./preview-${variant}-${view==='detail'?'detail':'overall'}.png`;
+try{renderer=new Renderer($('canvas'));$('renderer').textContent='WebGL2 · 真实实时渲染';}catch(err){
+  // iPhone sandbox / software fallback: keep actual mesh-derived stills visible.
+  $('renderer').textContent='静态网格预览 · WebGL2 不可用';
+  if(window.innerWidth>900)try{renderer=new CanvasRenderer($('canvas'));$('renderer').textContent='Canvas2D 兼容渲染 · 非 WebGL';}catch(e){}
+}
+function updateCamera(){if(!renderer)return;if(view==='detail'){
+ renderer.target=[.94,2.12,.98];renderer.distance=8.4;renderer.yaw=.79;renderer.pitch=.63;
+ }else{renderer.target=[variant==='balanced'?1.55:2.12,1.55,1.48];renderer.distance=variant==='balanced'?16.5:18.5;renderer.yaw=.80;renderer.pitch=.47;}
+ if(innerWidth<680)renderer.distance*=1.18;}
+function addGuide(items){if(!showGuide)return items;const line=new Mesh('accepted-boundary-guide','brass');let hip=[],valley=[];for(const v of model.seams.hip)hip.push([v[0],v[1]+.28,v[2]]);for(const v of model.seams.valley)valley.push([v[0],v[1]+.13,v[2]]);line.tube(hip,.027,8);line.tube(valley,.026,8);return [...items,{module:{parts:[line]},pos:[0,0,0],plinth:false}];}
+function draw(){if(!renderer)return;try{renderer.render();$('stage').classList.add('running')}catch(e){console.error(e);renderer=null;$('stage').classList.remove('running');$('renderer').textContent='渲染故障，静态图可用';}}
+function refresh(rebuild=true){try{
+ if(rebuild||!model)model=buildLValley(variants[variant]);
+ $('fallback').src=preview().replace('extended-detail.png','extended-overall.png');
+ let parts=model.parts;if(hideTiles)parts=parts.filter(p=>!/clipped-barrel-tiles|clipped-tile-lips|tile-underlaps/.test(p.id));
+ if(renderer){renderer.setItems(addGuide([{module:{parts},pos:[0,0,0],plinth:false}]));updateCamera();draw();}
+ $('study').textContent=variant==='balanced'?'STUDY — 01 / 02':'STUDY — 02 / 02';
+ $('title').textContent=variant==='balanced'?'标准 L 形 · 屋面阴角':'延长主翼 · 不对称 L';
+ $('subtitle').textContent=view==='detail'?'局部查看瓦片裁切 / 谷线 / 落水口':'整体查看正交屋脊 / 外角斜脊 / 内角谷线';
+ for(const [id,match] of [['balanced',variant==='balanced'],['extended',variant==='extended'],['overall',view==='overall'],['detail',view==='detail'],['guides',showGuide],['tiles',hideTiles]])$(id).classList.toggle('active',match);
+ $('vertex').textContent=`${model.seams.sharedDiagonalVertexCount} 个重合站点`;
+ $('drop').textContent=model.seams.drop.toFixed(3)+' m';$('slope').textContent=(model.seams.nominalPlanSlope*100).toFixed(1)+' %';
+ $('joint').textContent=model.validation.ok?'HIP / VALLEY ✓':'几何异常';$('triangles').textContent=model.metrics.triangles.toLocaleString();$('contract').textContent=model.validation.ok?'PASS':'FAIL: '+model.validation.issues.join(',');
+ }catch(e){console.error(e);$('contract').textContent='ERR: '+e.message;$('renderer').textContent='模型失败 · 静态预览';}}
+$('balanced').onclick=()=>{variant='balanced';refresh()};$('extended').onclick=()=>{variant='extended';refresh()};
+$('overall').onclick=()=>{view='overall';refresh(false)};$('detail').onclick=()=>{view='detail';refresh(false)};
+$('guides').onclick=()=>{showGuide=!showGuide;refresh(false)};$('tiles').onclick=()=>{hideTiles=!hideTiles;refresh(false)};
+$('reset').onclick=()=>refresh(false);
+$('save').onclick=()=>{if(renderer){try{const a=document.createElement('a');a.href=$('canvas').toDataURL('image/png');a.download=`EW-UX-G203-${variant}-${view}.png`;a.click();return}catch(e){}}window.open($('fallback').src,'_blank')};
+refresh();function loop(ms){if(renderer && ms-renderAt>(renderer.isFallback?380:50)){draw();renderAt=ms;}requestAnimationFrame(loop)}requestAnimationFrame(loop);
+</script></body></html>
