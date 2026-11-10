@@ -80,7 +80,7 @@
 | **F1-04** | 已确认决策但最终支持、空间/权限或事务发布检查失败 | 建造与决策全部回滚，不得留半发布 Space/Void/Support/Passage，也不得消耗正式 ID |
 | **F2-01** | T07 有效批准楼梯，合法 Remove 使端点身份消失 | 一个有 eventSeq 的 Remove，同事务派生 INVALIDATED 并断开抽象 Passage；**没有**新的 DecisionLog/eventSeq；不可因新 Add 复活旧 intentId |
 | **F2-02** | 由暂时性支持/权限变化触发合法 Remove 或 Recolor、原端点仍有效 | 同事务派生 SUSPENDED，回放同一个权威操作恢复一致失效原因；`abstractRouteAuthorized=false` |
-| **F2-03** | 用户主动 WITHDRAW、随后尝试 REAPPROVE 已 SUSPENDED 的原意图 | WITHDRAW/REAPPROVE 属各自 DecisionLog eventSeq；只有具有效身份、同范围且重验全部前提时才可恢复；已 INVALIDATED 且退役的意图必须新建 ID |
+| **F2-03** | 一条 ACTIVE 意图被用户主动 WITHDRAW；另有一条因临时前提失效而 SUSPENDED 的意图待 REAPPROVE | 主动 WITHDRAW 与 SUSPENDED 意图的 REAPPROVE 分别属于 DecisionLog 事件，各获自己的 eventSeq；只有绑定身份未退役、前提重验通过者才能重新 ACTIVE；已 WITHDRAWN 或 INVALIDATED 的旧意图不得直接复活，须新 proposal/intentId |
 | **F2-04** | 同事件重投、冲突 ID、旧前缀、拒绝式 Remove，以及丢失派生诊断后从全序重放 | 重投幂等无新 seq；冲突/拒绝世界字节不变；删除派生诊断不影响重放的状态和 PassageGraph；没有双写造成失效事件漂移 |
 
 **Gate 解释**：这些都是 R2-V3 后续测试规范，不是本轮实际运行。F1 未准入草稿禁止被作为支撑或通行来源；F2 由建造引起的自动失效是派生事实，不是权威 DecisionLog。其余 B1–B6 验收与 48 ID 追踪均不重开。
