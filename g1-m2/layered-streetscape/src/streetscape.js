@@ -54,7 +54,7 @@ export function planStreetscape({composition='BALANCED',stagger=1,heightContrast
   // Depth control translates row center without scaling the actual buildings.
   const x=R(q.x+(1-row)*2.2*(depthGap-1));
   // Stagger has a neutral baseline at 1, cannot introduce arbitrary grid jitter.
-  const z=R(1+(q.z-1)*.72+(1-stagger)*(.30*Math.sin(i*2.14+row)));
+  const z=R(1+(q.z-1)*.68+(1-stagger)*(.10*Math.sin(i*2.14+row)));
   // Maintain a common plinth elevation even with roof and wall height variation.
   const scale=R(1+(q.height-1)*heightContrast);
   return {...q,index:i,row,x,z,scale,width:R(2*q.span+.44)};
