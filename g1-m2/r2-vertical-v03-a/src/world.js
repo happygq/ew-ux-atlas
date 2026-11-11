@@ -28,7 +28,7 @@ const freeze = value => {
 };
 const admitted = (transactionId, idempotent = false) =>
   freeze({ status: 'SEMANTICALLY_ADMITTED', transactionId, idempotent });
-const rejected = code => freeze({ status: 'REJECTED', code });
+const rejected = (code, details = {}) => freeze({ status: 'REJECTED', code, ...details });
 const validRequestId = id => typeof id === 'string' && /^[a-zA-Z0-9._-]{1,96}$/.test(id);
 const validAuthorizer = id => typeof id === 'string' && id.length <= 160 && id.trim().length > 0;
 const same = (a, b) => canonicalBytes(a) === canonicalBytes(b);
@@ -49,19 +49,30 @@ function grid(config) {
   return { width, depth, levels, operatorId };
 }
 
-function normalizeAction(config, action) {
+const stageASupport = Object.freeze({
+  version: POLICY_VERSION,
+  project: cells => ({ support: supportFacts(cells) }),
+});
+
+function normalizeAction(config, action, supportPolicy) {
   if (!isRecord(action)) return null;
   const { type, x, z, level, color } = action;
+  const typedAdd = type === 'Add' && supportPolicy.roles;
+  const fields = ['type', 'x', 'z', 'level'];
+  if (type !== 'Remove') fields.push('color');
+  if (typedAdd) fields.push('supportRole');
   if (!['Add', 'Recolor', 'Remove'].includes(type) ||
       ![x, z, level].every(Number.isSafeInteger) ||
       x < 0 || x >= config.width || z < 0 || z >= config.depth || level < 0 || level >= config.levels ||
-      !Object.keys(action).every(key => ['type', 'x', 'z', 'level', ...(type === 'Remove' ? [] : ['color'])]
-        .includes(key))) return null;
+      !Object.keys(action).every(key => fields.includes(key))) return null;
   if (type === 'Remove') return { type, x, z, level };
-  return COLORS.includes(color) ? { type, x, z, level, color } : null;
+  if (!COLORS.includes(color)) return null;
+  if (!typedAdd) return { type, x, z, level, color };
+  const supportRole = action.supportRole === undefined ? supportPolicy.defaultRole : action.supportRole;
+  return supportPolicy.roles.includes(supportRole) ? { type, x, z, level, color, supportRole } : null;
 }
 
-function plan(state, action) {
+function plan(state, action, supportPolicy) {
   const prev = state.snapshot;
   const cells = new Map(prev.occupancy.map(c => [cellKey(c.x, c.z, c.level), c]));
   const { x, z, level, color } = action;
@@ -71,16 +82,18 @@ function plan(state, action) {
   let nextUnit = prev.nextIds.unit;
   if (action.type === 'Add') {
     if (cell) return rejected('OCCUPIED');
-    // An Add cannot be justified by its own projection or any staged Add.
-    if (level > 0 && !cells.has(cellKey(x, z, level - 1))) return rejected('REJECT_SUPPORT_UNRESOLVED');
-    cells.set(key, { x, z, level, color, unitId: `unit:${nextUnit++}`, createdByActionIndex: actionIndex });
+    const added = { x, z, level, color, unitId: `unit:${nextUnit++}`, createdByActionIndex: actionIndex };
+    if (action.supportRole !== undefined) added.supportRole = action.supportRole;
+    cells.set(key, added);
   } else {
     if (!cell) return rejected('NOT_OCCUPIED');
     if (action.type === 'Recolor') cells.set(key, { ...cell, color });
     else cells.delete(key);
   }
-  const support = supportFacts(cells);
-  if (!support) return rejected('REJECT_SUPPORT_UNRESOLVED');
+  // Rebuild support from committed cells plus this single edit. Other staging
+  // requests never enter the candidate sent to the support policy.
+  const { support, details } = supportPolicy.project(cells, prev.support, action);
+  if (!support) return rejected('REJECT_SUPPORT_UNRESOLVED', details);
   const retained = new Map(prev.spaceIntents.map(intent => [intent.scopeId, intent]));
   const scopes = eligibleScopes(state.initial, cells);
   return {
@@ -175,21 +188,22 @@ function candidate(state, bytes, requestId, action, planned, proposal, approval)
   };
 }
 
-function initialState(config) {
+function initialState(config, supportPolicy) {
   const initial = grid(config);
   const seed = { boundaryPatches: [], voidRegions: [], spaceRegions: [], nextIds: { patch: 1, unit: 1, void: 1, space: 1 } };
   const { retiredRegions, ...spatial } = projectSpatial(initial, new Map(), [], seed);
   return freeze({
-    policyVersion: POLICY_VERSION, initial, constructionLog: [], decisionLog: [], nextEventSeq: 1,
+    policyVersion: supportPolicy.version, initial, constructionLog: [], decisionLog: [], nextEventSeq: 1,
     snapshot: {
-      occupancy: [], constructionEdges: [], spaceIntents: [], support: [], passages: [],
+      occupancy: [], constructionEdges: [], spaceIntents: [], support: supportPolicy.project(new Map()).support,
+      passages: [],
       ...spatial, interfaceChanges: null,
     },
   });
 }
 
-function makeWorld(config, hooks) {
-  let state = initialState(config);
+function makeWorld(config, hooks, supportPolicy) {
+  let state = initialState(config, supportPolicy);
   let bytes = canonicalBytes(state);
   let busy = false;
   const pending = new Map();
@@ -230,11 +244,11 @@ function makeWorld(config, hooks) {
     }),
     submit(requestId, input) {
       if (busy) return rejected('REENTRANT_MUTATION');
-      const action = normalizeAction(state.initial, input);
+      const action = normalizeAction(state.initial, input, supportPolicy);
       if (!validRequestId(requestId) || !action) return rejected('INVALID_REQUEST');
       const old = packets.get(requestId)?.[0];
       if (old) return same(old.action, action) ? admitted(old.transactionId, true) : rejected('EVENT_ID_CONFLICT');
-      const planned = plan(state, action);
+      const planned = plan(state, action, supportPolicy);
       if (planned.code) return planned;
       if (!planned.scopes.length) return publish(candidate(state, bytes, requestId, action, planned), true);
       const proposal = proposalFor(state, bytes, requestId, action, planned.scopes);
@@ -258,7 +272,7 @@ function makeWorld(config, hooks) {
       if (draft.prefix !== state) return rejected('STALE_PREFIX');
       const { requestId, ghost: action } = draft.proposal;
       if (packets.has(requestId)) return rejected('EVENT_ID_CONFLICT');
-      const planned = plan(state, action);
+      const planned = plan(state, action, supportPolicy);
       if (planned.code) return planned;
       const proposal = proposalFor(state, bytes, requestId, action, planned.scopes);
       if (proposal.proposalId !== proposalId) return rejected('STALE_PROPOSAL');
@@ -285,9 +299,9 @@ function makeWorld(config, hooks) {
       if (!same(old, packet)) throw new Error('EVENT_ID_CONFLICT');
       return;
     }
-    const action = normalizeAction(state.initial, construction.action);
+    const action = normalizeAction(state.initial, construction.action, supportPolicy);
     if (!action) throw new Error('INVALID_REQUEST');
-    const planned = plan(state, action);
+    const planned = plan(state, action, supportPolicy);
     if (planned.code) throw new Error(planned.code);
     if (packet.length !== 1 + planned.scopes.length) throw new Error('INCOMPLETE_TRANSACTION');
     const proposal = planned.scopes.length ? proposalFor(state, bytes, requestId, action, planned.scopes) : null;
@@ -310,15 +324,25 @@ function makeWorld(config, hooks) {
 }
 
 export function createWorld(config = {}, hooks = {}) {
-  return makeWorld(config, hooks).api;
+  return createWorldWithSupport(stageASupport, config, hooks);
 }
 
 export function replay(journal) {
-  if (!isRecord(journal) || journal.policyVersion !== POLICY_VERSION ||
+  return replayWithSupport(stageASupport, journal);
+}
+
+// Internal seam for a fixed, versioned research policy. No policy configuration
+// or caller-supplied support evidence is taken from the journal.
+export function createWorldWithSupport(supportPolicy, config = {}, hooks = {}) {
+  return makeWorld(config, hooks, supportPolicy).api;
+}
+
+export function replayWithSupport(supportPolicy, journal) {
+  if (!isRecord(journal) || journal.policyVersion !== supportPolicy.version ||
       !Array.isArray(journal.transactions) || !same(grid(journal.initial), journal.initial)) {
     throw new Error('INVALID_JOURNAL');
   }
-  const { api, applyPacket } = makeWorld(journal.initial, {});
+  const { api, applyPacket } = makeWorld(journal.initial, {}, supportPolicy);
   for (const packet of journal.transactions) applyPacket(packet);
   return api;
 }
