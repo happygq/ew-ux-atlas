@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmdirSync, unlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { canonicalBytes } from '../r2-vertical-v03-a/src/world.js';
 import { openingPolicy } from '../r2-vertical-v03-c/src/opening-intents.js';
 import { replay } from '../r2-vertical-v03-c/src/world.js';
@@ -10,6 +15,38 @@ const snapshot = label => witness.states.get(label).snapshot;
 const intent = (label, id) => snapshot(label).openingIntents.find(i => i.intentId === id);
 const mixed = label => snapshot(label).support.nodes.find(n => n.role === 'MIXED_ROOM');
 const selected = node => node.alternatives.find(a => a.id === node.selectedAlternativeId);
+
+function assertVerifierRejects(report, reason) {
+  const directory = mkdtempSync(join(tmpdir(), 'ew-ux-t12-verify-'));
+  const path = join(directory, 'report.json');
+  writeFileSync(path, canonicalBytes(report), 'utf8');
+  try {
+    const cli = fileURLToPath(new URL('./t12-evidence.js', import.meta.url));
+    const result = spawnSync(process.execPath, [cli, '--verify', path], { encoding: 'utf8' });
+    assert.ifError(result.error);
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.match(result.stderr, reason);
+  } finally {
+    unlinkSync(path);
+    rmdirSync(directory);
+  }
+}
+
+test('E-D1: verifier rejects a committed-only report with the ten nonpublishing steps deleted', () => {
+  const { report } = witness;
+  const steps = report.steps.filter(step =>
+    step.result.status === 'SEMANTICALLY_ADMITTED' && !step.result.idempotent);
+  assert.equal(steps.length, 39);
+  assertVerifierRejects({ ...report, steps }, /T12 step count/);
+});
+
+test('E-D1: verifier rejects a changed rejection code with the original journal and hashes', () => {
+  const report = structuredClone(witness.report);
+  const step = report.steps.find(s => s.label === 'reject-last-column');
+  assert.equal(step.result.code, 'REJECT_SUPPORT_UNRESOLVED');
+  step.result.code = 'EVENT_ID_CONFLICT';
+  assertVerifierRejects(report, /T12 step \d+ \(reject-last-column\) differs from witness rerun/);
+});
 
 function buildingFacts(s, buildingId, intentId) {
   const occupancy = s.occupancy.filter(c => c.buildingId === buildingId);

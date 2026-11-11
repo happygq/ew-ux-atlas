@@ -25,7 +25,7 @@ node t12-evidence.js > t12-report.json
 node t12-evidence.js --verify t12-report.json
 ```
 
-Add `--snapshots` when generating the report to include the actual model projections after each step, approximately 42 MB. The verifier replays the authoritative journal, checks the before/after digests and sequence counter at all 49 steps, and checks each included snapshot against its state digest. The test reruns the public operations, including rejection and failure injection. The report contains 39 published transactions and 41 authoritative events. All five Stage D tests passed.
+Add `--snapshots` when generating the report to include the model projections after each step, approximately 42 MB. The verifier reruns the versioned witness and compares all 49 steps in order, including rejection codes, staged and idempotent results, before/after digests, and event sequence counters. It checks each included snapshot against the corresponding rerun projection and independently replays the supplied journal. The report requires 39 published transactions and 41 authoritative events. The E-D1 tests confirm that deleting nonpublishing steps or changing a rejection code fails verification even with the original journal and hashes.
 
 - Journal SHA-256 `3297822d202808bf49486b4d39b4634387fd774d838ae4270f6c455875241bbe`
 - Final state SHA-256 `1b7f3fef48f340e9200f0650f84f551a738f2b594b0b6936feb42d6c1584ab3e`

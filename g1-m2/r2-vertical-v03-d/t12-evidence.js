@@ -1,53 +1,39 @@
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { canonicalBytes } from '../r2-vertical-v03-a/src/world.js';
-import { createWorld, replay } from '../r2-vertical-v03-c/src/world.js';
-import { hashBytes, runT12, WITNESS_VERSION } from './t12-witness.js';
+import { replay } from '../r2-vertical-v03-c/src/world.js';
+import { runT12, WITNESS_VERSION } from './t12-witness.js';
 
 const args = process.argv.slice(2);
 
-function verifySteps(report) {
+function verifyReport(report) {
+  assert.equal(report.witnessVersion, WITNESS_VERSION);
   const { journal } = report;
-  const constructionLog = [];
-  const decisionLog = [];
-  let packetIndex = 0;
-  let nextEventSeq = 1;
-  let previous = report.initialStateSha256;
-  for (const step of report.steps) {
-    assert.equal(step.beforeSha256, previous, step.label);
-    if (step.result.status === 'SEMANTICALLY_ADMITTED' && !step.result.idempotent) {
-      const packet = journal.transactions[packetIndex++];
-      assert.equal(packet[0].inputPrefixDigest, previous, step.label);
-      assert.equal(packet[0].transactionId, step.result.transactionId, step.label);
-      for (const event of packet) {
-        (event.stream === 'ConstructionLog' ? constructionLog : decisionLog).push(event);
-      }
-      nextEventSeq += packet.length;
-      // Replay has independently checked the next packet's pre-state digest.
-      previous = journal.transactions[packetIndex]?.[0].inputPrefixDigest ?? report.finalStateSha256;
-    }
-    assert.equal(step.afterSha256, previous, step.label);
-    assert.equal(step.nextEventSeq, nextEventSeq, step.label);
-    if ('snapshot' in step) {
-      const state = {
-        initial: journal.initial, policyVersion: journal.policyVersion, constructionLog, decisionLog,
-        nextEventSeq, snapshot: step.snapshot,
-      };
-      assert.equal(hashBytes(canonicalBytes(state)), previous, step.label);
+  assert.equal(report.steps.length, 49, 'T12 step count');
+  assert.equal(journal.transactions.length, 39, 'T12 transaction count');
+  assert.equal(journal.transactions.flat().length, 41, 'T12 event count');
+
+  const { report: expected, states, world } = runT12();
+  for (const field of ['policyVersion', 'initialStateSha256', 'finalStateSha256', 'journalSha256']) {
+    assert.equal(report[field], expected[field], field);
+  }
+  assert.ok(canonicalBytes(journal) === canonicalBytes(expected.journal), 'T12 journal differs from witness rerun');
+  for (const [index, entry] of report.steps.entries()) {
+    const { snapshot, ...step } = entry;
+    const expectedStep = expected.steps[index];
+    const label = `T12 step ${index + 1} (${expectedStep.label})`;
+    assert.deepEqual(step, expectedStep, `${label} differs from witness rerun`);
+    if (Object.hasOwn(entry, 'snapshot')) {
+      assert.ok(canonicalBytes(snapshot) === canonicalBytes(states.get(expectedStep.label).snapshot),
+        `${label} snapshot differs from witness rerun`);
     }
   }
-  assert.equal(packetIndex, journal.transactions.length);
+  assert.ok(replay(journal).bytes() === world.bytes(), 'T12 replay differs from witness rerun');
 }
 
 if (args.length === 2 && args[0] === '--verify') {
   const report = JSON.parse(readFileSync(args[1], 'utf8'));
-  assert.equal(report.witnessVersion, WITNESS_VERSION);
-  assert.equal(report.policyVersion, report.journal.policyVersion);
-  assert.equal(hashBytes(canonicalBytes(report.journal)), report.journalSha256);
-  assert.equal(hashBytes(createWorld(report.journal.initial).bytes()), report.initialStateSha256);
-  const restored = replay(report.journal);
-  assert.equal(hashBytes(restored.bytes()), report.finalStateSha256);
-  verifySteps(report);
+  verifyReport(report);
   console.log(`T12 replay and ${report.steps.length} steps verified: ${report.finalStateSha256}`);
 } else if (args.length === 0 || (args.length === 1 && args[0] === '--snapshots')) {
   const { report } = runT12({ includeSnapshots: args[0] === '--snapshots' });
