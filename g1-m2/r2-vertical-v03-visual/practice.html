@@ -27,8 +27,22 @@
           </div>
           <div id="scene"></div>
           <p id="view-message" class="view-message" role="status">正在读取 T12 检查点…</p>
-          <div class="view-foot"><span>拖动旋转 · 滚轮缩放 · 右键拖动平移</span></div>
+          <div class="view-foot"><span>拖动旋转 · 滚轮缩放 · 右键拖动平移</span><span id="cursor-readout">指向网格查看位置</span></div>
         </section>
+        <fieldset class="edit-tools" id="edit-tools" disabled>
+          <legend class="sr-only">三维建造设置</legend>
+          <div class="edit-pickers">
+            <label>楼层<select id="edit-level"><option value="0">第 0 层</option><option value="1">第 1 层</option></select></label>
+            <label>添加类型<select id="edit-role"><option value="BEARING_ASSEMBLY">普通单元</option><option value="COLUMN">柱</option><option value="MIXED_ROOM">混合承托房间</option></select></label>
+          </div>
+          <div class="palette" id="palette" role="group" aria-label="颜色">
+            <button type="button" class="quiet" data-color="PAPER" aria-pressed="true"><span class="paint paper"></span>宣纸</button>
+            <button type="button" class="quiet" data-color="MIST" aria-pressed="false"><span class="paint mist"></span>雾色</button>
+            <button type="button" class="quiet" data-color="SILK" aria-pressed="false"><span class="paint silk"></span>丝色</button>
+            <button type="button" class="quiet" data-color="MOUNTAIN" aria-pressed="false"><span class="paint mountain"></span>山色</button>
+          </div>
+          <p class="edit-hint">左键添加 · 右键移除 · Shift＋左键改色</p>
+        </fieldset>
         <dl class="facts practice-facts">
           <div class="fact"><dt><span class="swatch court"></span>庭院</dt><dd id="court-fact">—</dd></div>
           <div class="fact"><dt><span class="swatch support"></span>当前承托</dt><dd id="support-fact">—</dd></div>
@@ -43,26 +57,8 @@
           <span id="task-index"></span>
           <strong id="task-title"></strong>
           <p id="task-details"></p>
-          <p id="task-target"></p>
+          <div class="task-location"><p id="task-target"></p><button type="button" id="locate-target" class="quiet" hidden>切到目标层</button></div>
         </div>
-        <form id="edit">
-          <fieldset id="edit-fields" disabled>
-            <legend class="sr-only">建造操作</legend>
-            <div class="field-pair">
-              <label>操作<select id="edit-type"><option value="Add">添加</option><option value="Remove">移除</option><option value="Recolor">改色</option></select></label>
-              <label id="role-field">添加类型<select id="edit-role"><option value="BEARING_ASSEMBLY">普通单元</option><option value="COLUMN">柱</option><option value="MIXED_ROOM">混合承托房间</option></select></label>
-            </div>
-            <div class="field-grid">
-              <label>层<select id="edit-level"><option value="0">第 0 层</option><option value="1">第 1 层</option></select></label>
-              <label>网格 X<input id="edit-x" type="number" min="0" step="1" required></label>
-              <label>网格 Z<input id="edit-z" type="number" min="0" step="1" required></label>
-            </div>
-            <div class="field-pair">
-              <label id="color-field">颜色<select id="edit-color"><option value="PAPER">宣纸</option><option value="MIST">雾色</option><option value="SILK">丝色</option><option value="MOUNTAIN">山色</option></select></label>
-              <button class="primary submit-edit" type="submit">提交操作</button>
-            </div>
-          </fieldset>
-        </form>
         <div id="choices" class="choices" hidden></div>
         <div id="proposals" class="choices" hidden></div>
         <p id="feedback" class="feedback" role="status"></p>

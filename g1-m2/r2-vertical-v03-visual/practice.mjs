@@ -5,11 +5,12 @@ import { guides } from './practice-guide.mjs';
 const byId = id => document.getElementById(id);
 const actions = { Add: '添加', Remove: '移除', Recolor: '改色' };
 const roles = { BEARING_ASSEMBLY: '普通单元', COLUMN: '柱', MIXED_ROOM: '混合承托房间' };
+const colors = { PAPER: '宣纸', MIST: '雾色', SILK: '丝色', MOUNTAIN: '山色' };
 const spaces = { DOUBLE_HEIGHT: '通高空间', SEPARATE_FLOORS: '分层空间', OPEN_COURT: '庭院' };
 const roofs = { COVERED_OPAQUE: '不透光屋盖', COVERED_TRANSLUCENT: '透光屋盖', OPEN_TO_SKY: '露天', PARTIAL_COVER: '部分覆盖' };
 const reasons = {
   REJECT_SUPPORT_UNRESOLVED: '无法找到完整、合格的承托方案。',
-  OCCUPIED: '该网格已占用。请选择空格添加。',
+  OCCUPIED: '该格已有单元。请选择空格添加，或按 Shift＋左键改色。',
   NOT_OCCUPIED: '该网格为空。请选择已有单元。',
   INVALID_REQUEST: '请检查操作和网格坐标。',
 };
@@ -48,32 +49,46 @@ async function start() {
   const { journal, prefixes } = await response.json();
   const { width, depth, levels, operatorId } = journal.initial;
   const grid = { width, depth, levels, lattice: 4 };
-  byId('edit-x').max = width - 1;
-  byId('edit-z').max = depth - 1;
   const host = byId('scene');
   let scene;
   try {
     const { createScene } = await import('./scene.mjs');
-    scene = createScene(host, grid);
+    scene = createScene(host, grid, {
+      onEdit: submitEdit,
+      onHover(at) {
+        byId('cursor-readout').textContent = at
+          ? `第 ${at.level} 层 · X ${at.x} · Z ${at.z}`
+          : '指向网格查看位置';
+      },
+    });
     byId('reset-view').addEventListener('click', scene.reset);
     byId('reset-view').disabled = false;
     byId('view-message').hidden = true;
   } catch (error) {
     console.warn(error);
-    byId('view-message').textContent = '当前浏览器无法显示三维场景，仍可通过状态文字查看练习结果。';
+    byId('view-message').textContent = '三维建造需要 WebGL。请在支持 WebGL 的浏览器打开练习。';
   }
 
-  const fieldset = byId('edit-fields');
-  const typeField = byId('edit-type');
+  const tools = byId('edit-tools');
+  const levelField = byId('edit-level');
+  const roleField = byId('edit-role');
+  const colorButtons = [...byId('palette').querySelectorAll('button')];
+  const locateTarget = byId('locate-target');
   const choicesPanel = byId('choices');
   const proposalsPanel = byId('proposals');
   let world, guide, guideId, taskIndex, requestIndex, knownCourts, rendered;
+  let color = 'PAPER';
   const nextId = () => `practice-${++requestIndex}`;
   const task = () => guide.tasks[taskIndex];
 
-  function updateFields() {
-    byId('role-field').hidden = typeField.value !== 'Add';
-    byId('color-field').hidden = typeField.value === 'Remove';
+  function selectColor(value) {
+    color = value;
+    for (const item of colorButtons) item.setAttribute('aria-pressed', String(item.dataset.color === value));
+  }
+
+  function selectLayer(value) {
+    levelField.value = String(value);
+    scene?.editor.setLayer(value);
   }
 
   function updateTask() {
@@ -85,6 +100,8 @@ async function start() {
     byId('task-target').textContent = action
       ? `${actions[action.type]}${role ? ` · ${roles[role]}` : ''} · 第 ${action.level} 层 · X ${action.x} · Z ${action.z}`
       : '';
+    locateTarget.hidden = !action || !scene;
+    scene?.editor.setTarget(action ?? null);
   }
 
   function matches(action) {
@@ -128,11 +145,11 @@ async function start() {
   function clearChoices() {
     choicesPanel.replaceChildren();
     choicesPanel.hidden = true;
-    fieldset.disabled = false;
+    tools.disabled = !scene;
   }
 
   function askRoof(draft, action) {
-    fieldset.disabled = true;
+    tools.disabled = true;
     proposalsPanel.hidden = true;
     choicesPanel.hidden = false;
     const selects = draft.scopes.map(scope => {
@@ -178,9 +195,10 @@ async function start() {
     requestIndex = 0;
     knownCourts = new Map();
     rendered = null;
-    byId('edit').reset();
     clearChoices();
-    updateFields();
+    roleField.value = 'BEARING_ASSEMBLY';
+    selectColor('PAPER');
+    selectLayer(task()?.action?.level ?? 0);
     byId('practice-source').textContent = `T12 第 ${prefix.sourceStep} 步 · ${guide.buildingName}`;
     byId('guide-title').textContent = guide.title;
     byId('guide-summary').textContent = guide.summary;
@@ -194,13 +212,15 @@ async function start() {
     history.replaceState(null, '', `#${id}`);
   }
 
-  byId('edit').addEventListener('submit', event => {
-    event.preventDefault();
-    const type = typeField.value;
-    const action = { type, x: byId('edit-x').valueAsNumber, z: byId('edit-z').valueAsNumber,
-      level: Number(byId('edit-level').value) };
-    if (type !== 'Remove') action.color = byId('edit-color').value;
-    if (type === 'Add') Object.assign(action, { supportRole: byId('edit-role').value, buildingId: guide.buildingId });
+  function submitEdit(type, { x, z, level }) {
+    if (!world) return;
+    if (!choicesPanel.hidden) {
+      feedback('请先确认或取消已暂存的方案。');
+      return;
+    }
+    const action = { type, x, z, level };
+    if (type !== 'Remove') action.color = color;
+    if (type === 'Add') Object.assign(action, { supportRole: roleField.value, buildingId: guide.buildingId });
     const result = world.submit(nextId(), action);
     if (result.status === 'PENDING_CHOICE') {
       feedback('建造已暂存。确认方案前，已提交场景保持不变。');
@@ -209,15 +229,20 @@ async function start() {
     }
     if (result.status === 'SEMANTICALLY_ADMITTED') {
       if (matches(action) && !task().reject && !task().roofClosure) taskIndex++;
-      feedback(`${actions[type]}已提交。`);
+      const suffix = type === 'Recolor' ? `已改为${colors[color]}。` : `${actions[type]}已提交。`;
+      feedback(`第 ${level} 层（${x}，${z}）${suffix}`);
     } else {
       if (matches(action) && task().reject === result.code) taskIndex++;
       feedback(`${reasons[result.code] ?? '当前操作未获准。'}场景保持不变。`, true);
     }
     updateScene();
     checkStairs();
+  }
+  levelField.addEventListener('change', () => selectLayer(Number(levelField.value)));
+  for (const item of colorButtons) item.addEventListener('click', () => selectColor(item.dataset.color));
+  locateTarget.addEventListener('click', () => {
+    if (task()?.action) selectLayer(task().action.level);
   });
-  typeField.addEventListener('change', updateFields);
   for (const [id, { title }] of Object.entries(guides)) {
     const tab = button(title, () => openGuide(id), 'milestone');
     tab.dataset.guide = id;
