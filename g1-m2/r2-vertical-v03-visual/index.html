@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f5ef">
+  <meta name="description" content="Explore the 49 committed and attempted steps of the real EW-UX T12 history.">
+  <title>T12 Playback · EW-UX Atlas</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./styles.css">
+  <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script>
+  <script type="module" src="./viewer.mjs"></script>
+</head>
+<body>
+  <main class="page">
+    <header class="heading">
+      <div class="identity"><span class="mark" aria-hidden="true"></span> EW-UX Atlas <span class="identity-divider"></span> Spatial research</div>
+      <h1>T12 Playback</h1>
+      <p>Follow one world through 49 recorded steps of construction, support and passage.</p>
+    </header>
+
+    <div class="workspace">
+      <section class="view" id="viewport" aria-label="Orbitable model of the committed T12 world">
+        <div class="view-head">
+          <span class="view-label"><span></span> Committed world</span>
+          <button type="button" id="reset-view" class="quiet" disabled>Reset view</button>
+        </div>
+        <div id="scene"></div>
+        <p class="view-message" id="view-message" role="status">Loading the T12 world…</p>
+        <div class="view-foot"><span id="gesture">Drag to orbit · Scroll to zoom · Right-drag to pan</span><span id="grid-label"></span></div>
+      </section>
+
+      <aside class="details" aria-label="Selected step and scene facts">
+        <div class="step-card" id="step-summary" aria-live="polite">
+          <div class="step-line"><span id="step-count">Recorded step</span><span class="status" id="status">Loading</span></div>
+          <h2 id="step-title">T12 history</h2>
+          <p id="step-detail"></p>
+          <code id="step-code" hidden></code>
+        </div>
+        <dl class="facts">
+          <div class="fact"><dt><span class="swatch court"></span>Courtyard</dt><dd id="court-fact">—</dd></div>
+          <div class="fact"><dt><span class="swatch support"></span>Selected support</dt><dd id="support-fact">—</dd></div>
+          <div class="fact"><dt><span class="swatch passage"></span>Abstract stair</dt><dd id="stair-fact">—</dd></div>
+        </dl>
+        <p class="legend">Volumes, roof tiles and support lines are schematic. Dashed stair lines show abstract approval only. Physical passage remains closed.</p>
+      </aside>
+    </div>
+
+    <section class="timeline" aria-label="Playback timeline">
+      <div class="transport">
+        <div class="transport-buttons">
+          <button id="play" class="primary" type="button" disabled>▶ Play</button>
+          <button id="prev" class="quiet arrow" type="button" aria-label="Previous step" disabled>←</button>
+          <button id="next" class="quiet arrow" type="button" aria-label="Next step" disabled>→</button>
+        </div>
+        <div class="seek">
+          <label class="sr-only" for="seek">Seek to a T12 step</label>
+          <input id="seek" type="range" min="0" max="49" value="0" step="1" disabled>
+          <div class="seek-label"><span>0 · Empty world</span><span>49 · End of history</span></div>
+        </div>
+      </div>
+      <div class="milestones" id="milestones" aria-label="Key moments"></div>
+    </section>
+    <footer><span>R2-V3-VIS-01 · M0</span><span id="provenance"></span></footer>
+  </main>
+</body>
+</html>

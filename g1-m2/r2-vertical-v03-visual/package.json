@@ -1,0 +1,8 @@
+{
+  "name": "ew-ux-r2-v3-visual",
+  "private": true,
+  "scripts": {
+    "export": "node export-frames.mjs",
+    "test": "node export-frames.mjs --check"
+  }
+}
