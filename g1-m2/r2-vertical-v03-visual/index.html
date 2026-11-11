@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f5ef">
+  <meta name="description" content="查看 EW-UX T12 真实历史中的 49 个操作步骤。">
+  <title>T12 三维回放 · EW-UX 图谱</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./styles.css">
+  <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script>
+  <script type="module" src="./viewer.mjs"></script>
+</head>
+<body>
+  <main class="page">
+    <header class="heading">
+      <div class="identity"><span class="mark" aria-hidden="true"></span> EW-UX 图谱 <span class="identity-divider"></span> 空间研究</div>
+      <h1>T12 三维回放</h1>
+      <p>沿着 49 步真实记录，查看建造、承托和抽象通行如何变化。</p>
+    </header>
+
+    <div class="workspace">
+      <section class="view" id="viewport" aria-label="T12 已提交世界的可旋转三维模型">
+        <div class="view-head">
+          <span class="view-label"><span></span> 已提交世界</span>
+          <button type="button" id="reset-view" class="quiet" disabled>重置视角</button>
+        </div>
+        <div id="scene"></div>
+        <p class="view-message" id="view-message" role="status">正在加载 T12 世界…</p>
+        <div class="view-foot"><span id="gesture">拖动旋转 · 滚轮缩放 · 右键拖动平移</span><span id="grid-label"></span></div>
+      </section>
+
+      <aside class="details" aria-label="当前步骤和场景状态">
+        <div class="step-card" id="step-summary" aria-live="polite">
+          <div class="step-line"><span id="step-count">回放步骤</span><span class="status" id="status">加载中</span></div>
+          <h2 id="step-title">T12 历史记录</h2>
+          <p id="step-detail"></p>
+          <code id="step-code" hidden></code>
+        </div>
+        <dl class="facts">
+          <div class="fact"><dt><span class="swatch court"></span>庭院</dt><dd id="court-fact">—</dd></div>
+          <div class="fact"><dt><span class="swatch support"></span>当前承托</dt><dd id="support-fact">—</dd></div>
+          <div class="fact"><dt><span class="swatch passage"></span>楼梯通行意图</dt><dd id="stair-fact">—</dd></div>
+        </dl>
+        <p class="legend">体量、屋盖和承托线均为示意。楼梯虚线表示已批准的抽象通行，实体通道仍未开通。</p>
+      </aside>
+    </div>
+
+    <section class="timeline" aria-label="回放时间轴">
+      <div class="transport">
+        <div class="transport-buttons">
+          <button id="play" class="primary" type="button" disabled>▶ 播放</button>
+          <button id="prev" class="quiet arrow" type="button" aria-label="上一步" disabled>←</button>
+          <button id="next" class="quiet arrow" type="button" aria-label="下一步" disabled>→</button>
+        </div>
+        <div class="seek">
+          <label class="sr-only" for="seek">跳转到 T12 步骤</label>
+          <input id="seek" type="range" min="0" max="49" value="0" step="1" disabled>
+          <div class="seek-label"><span>0 · 空场景</span><span>49 · 回放结束</span></div>
+        </div>
+      </div>
+      <div class="milestones" id="milestones" aria-label="关键步骤"></div>
+    </section>
+    <footer><span>R2-V3-VIS-01 · M0</span><span id="provenance"></span></footer>
+  </main>
+</body>
+</html>
