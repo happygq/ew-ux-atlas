@@ -1,0 +1,6 @@
+{
+  "name": "ew-ux-r2-v3-c",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test" }
+}

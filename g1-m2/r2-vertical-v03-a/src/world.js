@@ -54,13 +54,14 @@ const stageASupport = Object.freeze({
   project: cells => ({ support: supportFacts(cells) }),
 });
 
-function normalizeAction(config, action, supportPolicy) {
+function normalizeAction(config, action, supportPolicy, intentPolicy) {
   if (!isRecord(action)) return null;
   const { type, x, z, level, color } = action;
   const typedAdd = type === 'Add' && supportPolicy.roles;
   const fields = ['type', 'x', 'z', 'level'];
   if (type !== 'Remove') fields.push('color');
   if (typedAdd) fields.push('supportRole');
+  if (type === 'Add' && intentPolicy) fields.push(...intentPolicy.addFields);
   if (!['Add', 'Recolor', 'Remove'].includes(type) ||
       ![x, z, level].every(Number.isSafeInteger) ||
       x < 0 || x >= config.width || z < 0 || z >= config.depth || level < 0 || level >= config.levels ||
@@ -69,10 +70,12 @@ function normalizeAction(config, action, supportPolicy) {
   if (!COLORS.includes(color)) return null;
   if (!typedAdd) return { type, x, z, level, color };
   const supportRole = action.supportRole === undefined ? supportPolicy.defaultRole : action.supportRole;
-  return supportPolicy.roles.includes(supportRole) ? { type, x, z, level, color, supportRole } : null;
+  if (!supportPolicy.roles.includes(supportRole)) return null;
+  const metadata = intentPolicy ? intentPolicy.normalizeAdd(action) : {};
+  return metadata && { type, x, z, level, color, supportRole, ...metadata };
 }
 
-function plan(state, action, supportPolicy) {
+function plan(state, action, supportPolicy, intentPolicy) {
   const prev = state.snapshot;
   const cells = new Map(prev.occupancy.map(c => [cellKey(c.x, c.z, c.level), c]));
   const { x, z, level, color } = action;
@@ -84,6 +87,7 @@ function plan(state, action, supportPolicy) {
     if (cell) return rejected('OCCUPIED');
     const added = { x, z, level, color, unitId: `unit:${nextUnit++}`, createdByActionIndex: actionIndex };
     if (action.supportRole !== undefined) added.supportRole = action.supportRole;
+    if (intentPolicy) for (const field of intentPolicy.addFields) added[field] = action[field];
     cells.set(key, added);
   } else {
     if (!cell) return rejected('NOT_OCCUPIED');
@@ -145,7 +149,7 @@ function deriveInterfaceChanges(previous, spatial, constructionEvent) {
   };
 }
 
-function candidate(state, bytes, requestId, action, planned, proposal, approval) {
+function candidate(state, bytes, requestId, action, planned, proposal, approval, intentPolicy) {
   const transactionId = `tx:${requestId}`;
   const envelope = {
     transactionId, policyVersion: state.policyVersion,
@@ -170,6 +174,14 @@ function candidate(state, bytes, requestId, action, planned, proposal, approval)
   ].sort((a, b) => compare(a.scopeId, b.scopeId));
   const { retiredRegions, ...spatial } = projectSpatial(state.initial, planned.cells, spaceIntents, prev);
   const transaction = [construction, ...decisions];
+  const snapshot = {
+    occupancy: [...planned.cells.values()].sort(cellOrder),
+    constructionEdges: editEdges(prev.constructionEdges, planned.cells, action),
+    spaceIntents, support: planned.support, passages: [],
+    ...spatial, nextIds: { ...spatial.nextIds, unit: planned.nextUnit },
+    interfaceChanges: deriveInterfaceChanges(prev, { ...spatial, retiredRegions }, construction),
+  };
+  if (intentPolicy) Object.assign(snapshot, intentPolicy.afterConstruction(prev, snapshot));
   return {
     transaction,
     state: {
@@ -177,38 +189,62 @@ function candidate(state, bytes, requestId, action, planned, proposal, approval)
       constructionLog: [...state.constructionLog, construction],
       decisionLog: [...state.decisionLog, ...decisions],
       nextEventSeq: state.nextEventSeq + transaction.length,
-      snapshot: {
-        occupancy: [...planned.cells.values()].sort(cellOrder),
-        constructionEdges: editEdges(prev.constructionEdges, planned.cells, action),
-        spaceIntents, support: planned.support, passages: [],
-        ...spatial, nextIds: { ...spatial.nextIds, unit: planned.nextUnit },
-        interfaceChanges: deriveInterfaceChanges(prev, { ...spatial, retiredRegions }, construction),
-      },
+      snapshot,
     },
   };
 }
 
-function initialState(config, supportPolicy) {
+function initialState(config, supportPolicy, intentPolicy) {
   const initial = grid(config);
   const seed = { boundaryPatches: [], voidRegions: [], spaceRegions: [], nextIds: { patch: 1, unit: 1, void: 1, space: 1 } };
   const { retiredRegions, ...spatial } = projectSpatial(initial, new Map(), [], seed);
   return freeze({
-    policyVersion: supportPolicy.version, initial, constructionLog: [], decisionLog: [], nextEventSeq: 1,
+    policyVersion: intentPolicy?.version ?? supportPolicy.version,
+    initial, constructionLog: [], decisionLog: [], nextEventSeq: 1,
     snapshot: {
       occupancy: [], constructionEdges: [], spaceIntents: [], support: supportPolicy.project(new Map()).support,
-      passages: [],
+      passages: [], ...(intentPolicy ? { openingIntents: [] } : {}),
       ...spatial, interfaceChanges: null,
     },
   });
 }
 
-function makeWorld(config, hooks, supportPolicy) {
-  let state = initialState(config, supportPolicy);
+function makeWorld(config, hooks, supportPolicy, intentPolicy) {
+  let state = initialState(config, supportPolicy, intentPolicy);
   let bytes = canonicalBytes(state);
   let busy = false;
   const pending = new Map();
   const cancelled = new Set();
   const packets = new Map();
+  let openingPrefix;
+
+  function normalizeDecision(input) {
+    if (!isRecord(input) || Object.keys(input).length !== 4 ||
+        typeof input.type !== 'string' || typeof input.targetId !== 'string' ||
+        typeof input.inputPrefixDigest !== 'string' || input.authorizer !== state.initial.operatorId) return null;
+    const { type, targetId, authorizer, inputPrefixDigest } = input;
+    return { type, targetId, authorizer, inputPrefixDigest };
+  }
+
+  function decisionCandidate(requestId, decision) {
+    if (decision.inputPrefixDigest !== digest(bytes)) return rejected('STALE_PREFIX');
+    const event = {
+      requestId, transactionId: `tx:${requestId}`, policyVersion: state.policyVersion,
+      eventId: `opening-decision:${requestId}`, eventSeq: state.nextEventSeq,
+      inputPrefixDigest: decision.inputPrefixDigest, stream: 'DecisionLog', decision,
+    };
+    const result = intentPolicy.decide(state.snapshot, event);
+    if (result.code) return rejected(result.code);
+    const record = { ...event, ...result.evidence };
+    return {
+      transaction: [record],
+      state: {
+        ...state, nextEventSeq: state.nextEventSeq + 1,
+        decisionLog: [...state.decisionLog, record],
+        snapshot: { ...state.snapshot, ...result.projection },
+      },
+    };
+  }
 
   function publish(staged, checkHooks) {
     // All reads still see the old committed state until these checks finish.
@@ -244,13 +280,16 @@ function makeWorld(config, hooks, supportPolicy) {
     }),
     submit(requestId, input) {
       if (busy) return rejected('REENTRANT_MUTATION');
-      const action = normalizeAction(state.initial, input, supportPolicy);
+      const action = normalizeAction(state.initial, input, supportPolicy, intentPolicy);
       if (!validRequestId(requestId) || !action) return rejected('INVALID_REQUEST');
       const old = packets.get(requestId)?.[0];
-      if (old) return same(old.action, action) ? admitted(old.transactionId, true) : rejected('EVENT_ID_CONFLICT');
-      const planned = plan(state, action, supportPolicy);
+      if (old) return old.stream === 'ConstructionLog' && same(old.action, action)
+        ? admitted(old.transactionId, true) : rejected('EVENT_ID_CONFLICT');
+      const planned = plan(state, action, supportPolicy, intentPolicy);
       if (planned.code) return planned;
-      if (!planned.scopes.length) return publish(candidate(state, bytes, requestId, action, planned), true);
+      if (!planned.scopes.length) {
+        return publish(candidate(state, bytes, requestId, action, planned, null, null, intentPolicy), true);
+      }
       const proposal = proposalFor(state, bytes, requestId, action, planned.scopes);
       if (cancelled.has(proposal.proposalId)) return rejected('CANCELLED_PROPOSAL');
       pending.set(proposal.proposalId, { prefix: state, proposal });
@@ -272,13 +311,13 @@ function makeWorld(config, hooks, supportPolicy) {
       if (draft.prefix !== state) return rejected('STALE_PREFIX');
       const { requestId, ghost: action } = draft.proposal;
       if (packets.has(requestId)) return rejected('EVENT_ID_CONFLICT');
-      const planned = plan(state, action, supportPolicy);
+      const planned = plan(state, action, supportPolicy, intentPolicy);
       if (planned.code) return planned;
       const proposal = proposalFor(state, bytes, requestId, action, planned.scopes);
       if (proposal.proposalId !== proposalId) return rejected('STALE_PROPOSAL');
       const approval = normalizeApproval(input, planned.scopes, state.initial.operatorId);
       if (!approval) return rejected('INVALID_APPROVAL');
-      const result = publish(candidate(state, bytes, requestId, action, planned, proposal, approval), true);
+      const result = publish(candidate(state, bytes, requestId, action, planned, proposal, approval, intentPolicy), true);
       if (result.status === 'SEMANTICALLY_ADMITTED') pending.delete(proposalId);
       return result;
     },
@@ -290,6 +329,25 @@ function makeWorld(config, hooks, supportPolicy) {
     },
   };
 
+  if (intentPolicy) Object.assign(api, {
+    openingContext() {
+      const inputPrefixDigest = digest(bytes);
+      openingPrefix = state;
+      return freeze({ inputPrefixDigest, proposals: intentPolicy.proposals(state.snapshot, inputPrefixDigest) });
+    },
+    decideOpening(requestId, input) {
+      if (busy) return rejected('REENTRANT_MUTATION');
+      const decision = normalizeDecision(input);
+      if (!validRequestId(requestId) || !decision) return rejected('INVALID_OPENING_DECISION');
+      const old = packets.get(requestId)?.[0];
+      if (old) return old.stream === 'DecisionLog' && same(old.decision, decision)
+        ? admitted(old.transactionId, true) : rejected('EVENT_ID_CONFLICT');
+      if (openingPrefix !== state) return rejected('STALE_PREFIX');
+      const staged = decisionCandidate(requestId, decision);
+      return staged.code ? staged : publish(staged, true);
+    },
+  });
+
   function applyPacket(packet) {
     const construction = Array.isArray(packet) ? packet[0] : null;
     if (!isRecord(construction) || !validRequestId(construction.requestId)) throw new Error('INVALID_TRANSACTION');
@@ -299,9 +357,19 @@ function makeWorld(config, hooks, supportPolicy) {
       if (!same(old, packet)) throw new Error('EVENT_ID_CONFLICT');
       return;
     }
-    const action = normalizeAction(state.initial, construction.action, supportPolicy);
+    if (construction.stream === 'DecisionLog' && intentPolicy) {
+      if (packet.length !== 1) throw new Error('INCOMPLETE_TRANSACTION');
+      const decision = normalizeDecision(construction.decision);
+      if (!decision) throw new Error('INVALID_OPENING_DECISION');
+      const staged = decisionCandidate(requestId, decision);
+      if (staged.code) throw new Error(staged.code);
+      if (!same(staged.transaction, packet)) throw new Error('TRANSACTION_MISMATCH');
+      publish(staged, false);
+      return;
+    }
+    const action = normalizeAction(state.initial, construction.action, supportPolicy, intentPolicy);
     if (!action) throw new Error('INVALID_REQUEST');
-    const planned = plan(state, action, supportPolicy);
+    const planned = plan(state, action, supportPolicy, intentPolicy);
     if (planned.code) throw new Error(planned.code);
     if (packet.length !== 1 + planned.scopes.length) throw new Error('INCOMPLETE_TRANSACTION');
     const proposal = planned.scopes.length ? proposalFor(state, bytes, requestId, action, planned.scopes) : null;
@@ -313,7 +381,7 @@ function makeWorld(config, hooks, supportPolicy) {
       }, planned.scopes, state.initial.operatorId);
       if (!approval) throw new Error('INVALID_APPROVAL');
     }
-    const staged = candidate(state, bytes, requestId, action, planned, proposal, approval);
+    const staged = candidate(state, bytes, requestId, action, planned, proposal, approval, intentPolicy);
     // Compare complete canonical event bytes against a projection rebuilt from
     // the preceding verified packets, including prefix, order, and policy.
     if (!same(staged.transaction, packet)) throw new Error('TRANSACTION_MISMATCH');
@@ -333,16 +401,16 @@ export function replay(journal) {
 
 // Internal seam for a fixed, versioned research policy. No policy configuration
 // or caller-supplied support evidence is taken from the journal.
-export function createWorldWithSupport(supportPolicy, config = {}, hooks = {}) {
-  return makeWorld(config, hooks, supportPolicy).api;
+export function createWorldWithSupport(supportPolicy, config = {}, hooks = {}, intentPolicy) {
+  return makeWorld(config, hooks, supportPolicy, intentPolicy).api;
 }
 
-export function replayWithSupport(supportPolicy, journal) {
-  if (!isRecord(journal) || journal.policyVersion !== supportPolicy.version ||
+export function replayWithSupport(supportPolicy, journal, intentPolicy) {
+  if (!isRecord(journal) || journal.policyVersion !== (intentPolicy?.version ?? supportPolicy.version) ||
       !Array.isArray(journal.transactions) || !same(grid(journal.initial), journal.initial)) {
     throw new Error('INVALID_JOURNAL');
   }
-  const { api, applyPacket } = makeWorld(journal.initial, {}, supportPolicy);
+  const { api, applyPacket } = makeWorld(journal.initial, {}, supportPolicy, intentPolicy);
   for (const packet of journal.transactions) applyPacket(packet);
   return api;
 }
