@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f5ef">
+  <title>T12 操作练习 · EW-UX 图谱</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./styles.css">
+  <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script>
+  <script type="module" src="./practice.mjs"></script>
+</head>
+<body>
+  <main class="page">
+    <header class="heading">
+      <div class="identity"><span class="mark" aria-hidden="true"></span> EW-UX 图谱 <span class="identity-divider"></span> <a class="nav-link" href="./">返回 T12 回放</a></div>
+      <h1>T12 操作练习</h1>
+      <p>从真实 T12 检查点开始，亲手添加、移除或改色，观察已提交场景的变化。</p>
+    </header>
+    <div id="guide-tabs" class="guide-tabs" aria-label="选择练习"></div>
+    <div class="workspace practice">
+      <div>
+        <section class="view" aria-label="练习中的可旋转三维场景">
+          <div class="view-head">
+            <span class="view-label"><span></span> 已提交世界</span>
+            <button type="button" id="reset-view" class="quiet" disabled>重置视角</button>
+          </div>
+          <div id="scene"></div>
+          <p id="view-message" class="view-message" role="status">正在读取 T12 检查点…</p>
+          <div class="view-foot"><span>拖动旋转 · 滚轮缩放 · 右键拖动平移</span></div>
+        </section>
+        <dl class="facts practice-facts">
+          <div class="fact"><dt><span class="swatch court"></span>庭院</dt><dd id="court-fact">—</dd></div>
+          <div class="fact"><dt><span class="swatch support"></span>当前承托</dt><dd id="support-fact">—</dd></div>
+          <div class="fact"><dt><span class="swatch passage"></span>抽象通行</dt><dd id="stair-fact">—</dd></div>
+        </dl>
+      </div>
+      <aside class="details practice-panel" aria-label="练习操作">
+        <div class="step-line"><span id="practice-source">检查点</span><button class="quiet" id="reset-guide" type="button" disabled>重新开始</button></div>
+        <h2 id="guide-title">操作练习</h2>
+        <p id="guide-summary" class="muted"></p>
+        <div class="task" aria-live="polite">
+          <span id="task-index"></span>
+          <strong id="task-title"></strong>
+          <p id="task-details"></p>
+          <p id="task-target"></p>
+        </div>
+        <form id="edit">
+          <fieldset id="edit-fields" disabled>
+            <legend class="sr-only">建造操作</legend>
+            <div class="field-pair">
+              <label>操作<select id="edit-type"><option value="Add">添加</option><option value="Remove">移除</option><option value="Recolor">改色</option></select></label>
+              <label id="role-field">添加类型<select id="edit-role"><option value="BEARING_ASSEMBLY">普通单元</option><option value="COLUMN">柱</option><option value="MIXED_ROOM">混合承托房间</option></select></label>
+            </div>
+            <div class="field-grid">
+              <label>层<select id="edit-level"><option value="0">第 0 层</option><option value="1">第 1 层</option></select></label>
+              <label>网格 X<input id="edit-x" type="number" min="0" step="1" required></label>
+              <label>网格 Z<input id="edit-z" type="number" min="0" step="1" required></label>
+            </div>
+            <div class="field-pair">
+              <label id="color-field">颜色<select id="edit-color"><option value="PAPER">宣纸</option><option value="MIST">雾色</option><option value="SILK">丝色</option><option value="MOUNTAIN">山色</option></select></label>
+              <button class="primary submit-edit" type="submit">提交操作</button>
+            </div>
+          </fieldset>
+        </form>
+        <div id="choices" class="choices" hidden></div>
+        <div id="proposals" class="choices" hidden></div>
+        <p id="feedback" class="feedback" role="status"></p>
+        <p class="legend">楼梯虚线表示已批准的抽象路线，实体楼板仍保持闭合。练习结果保存在当前页面会话中。</p>
+      </aside>
+    </div>
+    <footer><span>R2-V3-VIS-01 · M1</span></footer>
+  </main>
+</body>
+</html>

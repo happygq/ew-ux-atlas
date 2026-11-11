@@ -6,6 +6,7 @@ const prev = byId('prev');
 const next = byId('next');
 const reset = byId('reset-view');
 const milestoneList = byId('milestones');
+const technicalToggle = byId('technical');
 const titles = {
   'approve-east': '批准东侧楼梯',
   'approve-south': '批准南侧楼梯',
@@ -165,6 +166,18 @@ async function start() {
   let current = 0;
   let sceneId = -1;
   let timer = null;
+  let technical = false;
+  const allSteps = [0, ...frames.map(f => f.step)];
+  const userSteps = [0, ...frames.filter(f => !f.idempotent &&
+    !['EVENT_ID_CONFLICT', 'PUBLICATION_FAILED', 'STALE_PREFIX'].includes(f.code)).map(f => f.step)];
+  const steps = () => technical ? allSteps : userSteps;
+  const adjacent = offset => steps()[steps().indexOf(current) + offset];
+
+  function setTechnical(value) {
+    technical = value;
+    technicalToggle.textContent = value ? '仅显示用户流程' : '显示全部 49 步';
+    technicalToggle.setAttribute('aria-pressed', String(value));
+  }
 
   function pause() {
     clearInterval(timer);
@@ -194,7 +207,8 @@ async function start() {
     code.textContent = frame?.code ?? '';
     code.hidden = !frame?.code;
     updateFacts(model);
-    seek.value = step;
+    seek.max = steps().length - 1;
+    seek.value = steps().indexOf(step);
     seek.setAttribute('aria-valuetext', `第 ${step} 步，共 ${frames.length} 步`);
     prev.disabled = step === 0;
     next.disabled = step === frames.length;
@@ -222,16 +236,20 @@ async function start() {
     milestoneList.append(button);
   }
 
-  seek.addEventListener('input', () => jump(Number(seek.value)));
-  prev.addEventListener('click', () => jump(current - 1));
-  next.addEventListener('click', () => jump(current + 1));
+  seek.addEventListener('input', () => jump(steps()[Number(seek.value)]));
+  prev.addEventListener('click', () => jump(adjacent(-1)));
+  next.addEventListener('click', () => jump(adjacent(1)));
+  technicalToggle.addEventListener('click', () => {
+    setTechnical(!technical);
+    jump(steps().includes(current) ? current : steps().findLast(step => step < current));
+  });
   play.addEventListener('click', () => {
     if (timer !== null) return pause();
     if (current === frames.length) show(0);
     play.textContent = '⏸ 暂停';
     play.setAttribute('aria-pressed', 'true');
     timer = setInterval(() => {
-      show(current + 1);
+      show(adjacent(1));
       if (current === frames.length) pause();
     }, 720);
   });
@@ -239,10 +257,16 @@ async function start() {
     const match = /^#step=(\d+)$/.exec(location.hash);
     return match && Number(match[1]) <= frames.length ? Number(match[1]) : milestones[0].step;
   };
-  window.addEventListener('hashchange', () => jump(fromHash()));
+  function openHash() {
+    const step = fromHash();
+    if (!steps().includes(step)) setTechnical(true);
+    jump(step);
+  }
+  window.addEventListener('hashchange', openHash);
   seek.disabled = false;
   play.disabled = false;
-  jump(fromHash());
+  technicalToggle.disabled = false;
+  openHash();
 }
 
 start().catch(error => {

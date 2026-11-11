@@ -76,9 +76,34 @@ h1 { margin: 5px 0 2px; font: 500 clamp(2.15rem, 4vw, 3.55rem)/1.07 "Instrument 
 .seek input { display: block; width: 100%; margin: 0; accent-color: var(--accent); cursor: pointer; }
 .seek-label { display: flex; justify-content: space-between; color: var(--muted); font-size: .65rem; }
 .milestones { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.timeline-options { display: flex; justify-content: space-between; flex-wrap: wrap; align-items: flex-end; gap: 6px; }
 .milestone[aria-current="step"] { border-color: #749184; background: #eaf0e8; color: #254638; }
 .milestone span { color: #586a60; margin-right: 5px; font: .68rem ui-monospace, monospace; }
 footer { display: flex; justify-content: space-between; gap: 10px; margin: 9px 1px 0; font-size: .68rem; color: var(--muted); }
+.nav-link { color: var(--accent); font-weight: 700; text-underline-offset: 3px; }
+.guide-tabs { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 11px; }
+.practice { grid-template-columns: minmax(0, 1fr) minmax(325px, 360px); }
+.practice-panel h2 { margin: 11px 0 3px; font-size: 1.14rem; }
+.muted, .task p, .feedback { margin: 0; font-size: .81rem; color: var(--muted); }
+.task { display: grid; gap: 3px; padding: 10px 11px; margin: 11px 0; background: #eff1e8; border-radius: 8px; }
+.task span, #task-target { font-size: .74rem; font-weight: 650; color: var(--accent); }
+.task strong { font-size: .87rem; }
+.practice fieldset { border: 0; padding: 0; margin: 0; min-inline-size: 0; }
+.practice label { display: grid; gap: 3px; font-size: .74rem; font-weight: 650; }
+.practice input, .practice select {
+  min-width: 0; width: 100%; min-height: 32px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--card); color: var(--ink); padding: 4px 6px; font: inherit;
+}
+.practice input:focus-visible, .practice select:focus-visible { outline: 2px solid var(--accent); }
+.field-pair, .field-grid { display: grid; gap: 7px; align-items: end; margin-bottom: 7px; }
+.field-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.field-grid { grid-template-columns: 1.25fr 1fr 1fr; }
+.submit-edit { justify-self: end; }
+.practice-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 0 10px; }
+.feedback { min-height: 24px; margin: 4px 0 9px; color: var(--accent); }
+.feedback[data-kind="rejected"] { color: #853f37; }
+.choices { display: grid; gap: 6px; margin: 5px 0; padding: 7px 0; border-top: 1px solid var(--line); }
+.choices button { justify-self: start; white-space: normal; text-align: left; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 
 .fallback { height: 100%; display: flex; align-content: center; justify-content: center; flex-wrap: wrap; gap: 17px; padding: 45px 18px 38px; }

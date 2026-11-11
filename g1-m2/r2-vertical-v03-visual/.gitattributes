@@ -1,1 +1,3 @@
 frames.json text eol=lf
+practice-data.json text eol=lf
+practice-engine.mjs text eol=lf

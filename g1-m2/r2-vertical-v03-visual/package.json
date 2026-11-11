@@ -3,6 +3,11 @@
   "private": true,
   "scripts": {
     "export": "node export-frames.mjs",
-    "test": "node export-frames.mjs --check"
+    "build:practice": "node prepare-practice.mjs",
+    "test": "node export-frames.mjs --check && node prepare-practice.mjs --check"
+  },
+  "devDependencies": {
+    "@noble/hashes": "1.8.0",
+    "esbuild": "0.25.12"
   }
 }

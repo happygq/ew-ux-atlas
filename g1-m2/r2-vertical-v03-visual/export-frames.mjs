@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createWorld, replay } from '../r2-vertical-v03-c/src/world.js';
 import { hashBytes, runT12 } from '../r2-vertical-v03-d/t12-witness.js';
+import { compactScene } from './scene-model.mjs';
 
 const BASE = '80478c802ffd3cf6c37fda2f1d3cd6c2cb956990';
 const LATTICE = 4;
@@ -13,49 +14,6 @@ const milestones = [
   { label: 'approve-restored-south', title: 'Approve new stair' },
 ];
 
-function compactScene(snapshot, knownCourts) {
-  const volume = new Map(snapshot.volumeFragments.map(f => [f.id, f]));
-  const currentCourts = new Map(snapshot.spaceIntents.map(intent => [intent.scopeId, intent]));
-  for (const scope of currentCourts.values()) knownCourts.set(scope.scopeId, scope);
-  return {
-    units: snapshot.occupancy.map(({ unitId, x, z, level, buildingId, supportRole, color }) =>
-      ({ unitId, x, z, level, buildingId, supportRole, color })),
-    courts: [...knownCourts.values()].map(({ scopeId, footprint, bottomLevel, topLevel }) => {
-      const intent = currentCourts.get(scopeId);
-      const plane = topLevel + 1;
-      const roof = snapshot.boundaryPatches.filter(({ bounds: b }) => b.axis === 'y' && b.plane === plane &&
-        footprint.some(({ x, z }) => b.u0 >= x * LATTICE && b.u1 <= (x + 1) * LATTICE &&
-          b.v0 >= z * LATTICE && b.v1 <= (z + 1) * LATTICE));
-      const air = snapshot.volumeFragments.filter(f =>
-        f.kind.endsWith('_AIR') && footprint.some(({ x, z }) => f.gridKey === `${bottomLevel}:${x},${z}`));
-      const region = snapshot.voidRegions.find(r => air.length && r.members.includes(air[0].id));
-      return {
-        scopeId, footprint, bottomLevel, topLevel, decisionId: intent?.decisionId ?? null,
-        spaceIntent: intent?.spaceIntent ?? null, roofClosure: intent?.roofClosure ?? null,
-        voidRegionId: region?.id ?? null, skyConnected: region?.airConnectedSky ?? false,
-        tiles: roof.map(({ id, bounds, kind, airOpen }) => ({ id, bounds, kind, airOpen })),
-      };
-    }),
-    supports: snapshot.support.nodes.filter(node => node.role === 'MIXED_ROOM').map(node => {
-      const alternative = node.alternatives.find(a => a.id === node.selectedAlternativeId);
-      return {
-        unitId: node.unitId, alternativeId: alternative.id, orientation: alternative.orientation,
-        patternId: alternative.patternId, sources: alternative.requiredSources,
-      };
-    }),
-    supportChanges: snapshot.support.selectionChanges,
-    openings: snapshot.openingIntents.map(intent => {
-      const { kind, hostPatchId, endpoints } = intent.proposal.binding;
-      return {
-        intentId: intent.intentId, kind, hostPatchId, status: intent.status,
-        abstractRouteAuthorized: intent.abstractRouteAuthorized, physicalPassable: intent.physicalPassable,
-        endpoints: endpoints.map(endpoint => ({ ...endpoint, bounds: volume.get(endpoint.volumeId)?.bounds ?? null })),
-      };
-    }),
-    passageIds: snapshot.passages.map(p => p.intentId),
-  };
-}
-
 const { report, states } = runT12();
 const { journal, steps, journalSha256, finalStateSha256, initialStateSha256, witnessVersion } = report;
 assert.equal(steps.length, 49);
@@ -65,14 +23,14 @@ assert.equal(hashBytes(replay(journal).bytes()), finalStateSha256);
 const initial = createWorld(journal.initial);
 assert.equal(hashBytes(initial.bytes()), initialStateSha256);
 const knownCourts = new Map();
-const scenes = [compactScene(initial.state.snapshot, knownCourts)];
+const scenes = [compactScene(initial.state.snapshot, knownCourts, LATTICE)];
 const sceneByDigest = new Map([[initialStateSha256, 0]]);
 const packets = new Map(journal.transactions.map(p => [p[0].transactionId, p]));
 const frames = steps.map((step, index) => {
   const { label, afterSha256, beforeSha256, result } = step;
   if (!sceneByDigest.has(afterSha256)) {
     sceneByDigest.set(afterSha256, scenes.length);
-    scenes.push(compactScene(states.get(label).snapshot, knownCourts));
+    scenes.push(compactScene(states.get(label).snapshot, knownCourts, LATTICE));
   }
   const changed = beforeSha256 !== afterSha256;
   assert.equal(changed, result.status === 'SEMANTICALLY_ADMITTED' && !result.idempotent);
