@@ -1,0 +1,9 @@
+{
+  "name": "ew-ux-r2-v3-d",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "evidence": "node t12-evidence.js"
+  }
+}
