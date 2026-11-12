@@ -1,10 +1,10 @@
 import { canonicalBytes, cellKey, createWorldWithSupport, replayWithSupport } from '../r2-vertical-v03-a/src/world.js';
 import { supportPolicy } from '../r2-vertical-v03-b/src/support-graph.js';
-import { openingPolicy } from '../r2-vertical-v03-c/src/opening-intents.js';
+import { createPracticeOpeningPolicy } from './practice-openings.mjs';
 export { replay as replayT12 } from '../r2-vertical-v03-c/src/world.js';
 
-export const POLICY_VERSION = 'ew-ux/r2-v3-visual/automatic-column/1';
-const intentPolicy = Object.freeze({ ...openingPolicy, version: POLICY_VERSION });
+export const POLICY_VERSION = 'ew-ux/r2-v3-visual/practice/2';
+const intentPolicy = createPracticeOpeningPolicy(POLICY_VERSION);
 const bearing = supportPolicy.defaultRole;
 const autoSupport = Object.freeze({
   ...supportPolicy,

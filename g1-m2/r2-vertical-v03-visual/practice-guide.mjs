@@ -3,12 +3,12 @@ const edit = (type, x, z, level, title, details, extra = {}) =>
 
 export const guides = {
   stair: {
-    title: '南侧楼梯 · 拆除与恢复', sourceStep: 42, buildingId: 'south', buildingName: '南侧建筑',
-    summary: '拆除楼梯平台会使旧通行意图失效。重建平台后，亲自确认新的楼梯提案。',
+    title: '南侧楼梯 · 三格换位', sourceStep: 42, buildingId: 'south', buildingName: '南侧建筑',
+    summary: '拆掉旧落点，让上层只剩三格，再从剩余单元中确认新的楼梯落点。',
     tasks: [
-      edit('Remove', 5, 4, 1, '拆除南侧上层平台', '拆除后观察南侧虚线消失，东侧路线仍保留。'),
-      edit('Add', 5, 4, 1, '在原位重建平台', '重建后先观察新的楼梯提案。'),
-      { decision: 'STAIR', title: '批准新楼梯', details: '确认新提案后，南侧抽象路线才会重新出现。' },
+      edit('Remove', 5, 4, 1, '拆除南侧上层旧落点', '旧南侧路线失效。观察剩余三格中出现的橙色候选线。'),
+      { decision: 'STAIR', footprintLength: 7, title: '确认剩余三格中的新落点',
+        details: '确认橙色候选后，它才成为新的抽象通行。原来拆掉的格子保持空置。' },
     ],
   },
   support: {

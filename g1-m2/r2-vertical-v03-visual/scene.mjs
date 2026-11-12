@@ -126,15 +126,22 @@ function addSupport(parent, support, units) {
   marker(parent, to, .066, hue);
 }
 
-function addStair(parent, opening, lattice) {
+function addStair(parent, opening, lattice, hue = '#087780') {
   const [from, to] = opening.endpoints.map(({ bounds: b }) => position(
     (b.x0 + b.x1) / (2 * lattice), (b.y0 + b.y1) / 2, (b.z0 + b.z1) / (2 * lattice)));
-  const hue = '#087780';
   for (let i = 0; i < 6; i++) {
     segment(parent, from.clone().lerp(to, i / 6), from.clone().lerp(to, i / 6 + .10), .036, hue, true);
   }
   marker(parent, from, .072, hue, true);
   marker(parent, to, .072, hue, true);
+}
+
+function clearMeshes(group) {
+  for (const item of [...group.children]) {
+    item.geometry.dispose();
+    item.material.dispose();
+    group.remove(item);
+  }
 }
 
 export function createScene(host, grid, interaction) {
@@ -149,7 +156,8 @@ export function createScene(host, grid, interaction) {
   scene.add(sun);
   addGrid(scene, grid);
   const content = new THREE.Group();
-  scene.add(content);
+  const candidates = new THREE.Group();
+  scene.add(content, candidates);
   const target = position(grid.width / 2, .32, grid.depth / 2);
   const initial = target.clone().add(new THREE.Vector3(7.7, 9.8, 9.4));
   const camera = new THREE.OrthographicCamera(-8, 8, 5, -5, .1, 80);
@@ -186,12 +194,14 @@ export function createScene(host, grid, interaction) {
   return {
     editor,
     reset: () => controls.reset(),
+    setStairCandidates(openings) {
+      clearMeshes(candidates);
+      openings.filter(o => o.endpoints.every(e => e.bounds))
+        .forEach(o => addStair(candidates, o, grid.lattice, '#c06c19'));
+      paint();
+    },
     render(model) {
-      for (const item of [...content.children]) {
-        item.geometry.dispose();
-        item.material.dispose();
-        content.remove(item);
-      }
+      clearMeshes(content);
       const units = new Map(model.units.map(unit => [unit.unitId, unit]));
       const pickable = editor ? [] : null;
       model.units.forEach(unit => addUnit(content, unit, pickable));
