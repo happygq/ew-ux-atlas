@@ -15,7 +15,7 @@
     <header class="heading">
       <div class="identity"><span class="mark" aria-hidden="true"></span> EW-UX 图谱 <span class="identity-divider"></span> <a class="nav-link" href="./">返回 T12 回放</a></div>
       <h1>T12 操作练习</h1>
-      <p>从真实 T12 检查点开始，亲手添加、移除或改色，观察已提交场景的变化。</p>
+      <p>亲手添加、移除或改色，观察承托、庭院和抽象通行如何变化。</p>
     </header>
     <div id="guide-tabs" class="guide-tabs" aria-label="选择练习"></div>
     <div class="workspace practice">
@@ -32,8 +32,7 @@
         <fieldset class="edit-tools" id="edit-tools" disabled>
           <legend class="sr-only">三维建造设置</legend>
           <div class="edit-pickers">
-            <label>楼层<select id="edit-level"><option value="0">第 0 层</option><option value="1">第 1 层</option></select></label>
-            <label>添加类型<select id="edit-role"><option value="BEARING_ASSEMBLY">普通单元</option><option value="COLUMN">柱</option><option value="MIXED_ROOM">混合承托房间</option></select></label>
+            <label>楼层<select id="edit-level"></select></label>
           </div>
           <div class="palette" id="palette" role="group" aria-label="颜色">
             <button type="button" class="quiet" data-color="PAPER" aria-pressed="true"><span class="paint paper"></span>宣纸</button>
@@ -41,7 +40,7 @@
             <button type="button" class="quiet" data-color="SILK" aria-pressed="false"><span class="paint silk"></span>丝色</button>
             <button type="button" class="quiet" data-color="MOUNTAIN" aria-pressed="false"><span class="paint mountain"></span>山色</button>
           </div>
-          <p class="edit-hint">左键添加 · 右键移除 · Shift＋左键改色</p>
+          <p class="edit-hint">左键添加普通单元 · 右键移除 · Shift＋左键改色</p>
         </fieldset>
         <dl class="facts practice-facts">
           <div class="fact"><dt><span class="swatch court"></span>庭院</dt><dd id="court-fact">—</dd></div>

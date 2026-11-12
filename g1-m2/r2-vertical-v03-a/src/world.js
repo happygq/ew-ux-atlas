@@ -96,7 +96,17 @@ function plan(state, action, supportPolicy, intentPolicy) {
   }
   // Rebuild support from committed cells plus this single edit. Other staging
   // requests never enter the candidate sent to the support policy.
-  const { support, details } = supportPolicy.project(cells, prev.support, action);
+  let { support, details } = supportPolicy.project(cells, prev.support, action);
+  if (!support && action.type === 'Remove' && supportPolicy.replaceRemovedUnit) {
+    const replacement = supportPolicy.replaceRemovedUnit(cell, cells, {
+      unitId: `unit:${nextUnit}`, createdByActionIndex: actionIndex,
+    });
+    if (replacement) {
+      cells.set(key, replacement);
+      ({ support, details } = supportPolicy.project(cells, prev.support, action));
+      if (support) nextUnit++;
+    }
+  }
   if (!support) return rejected('REJECT_SUPPORT_UNRESOLVED', details);
   const retained = new Map(prev.spaceIntents.map(intent => [intent.scopeId, intent]));
   const scopes = eligibleScopes(state.initial, cells);

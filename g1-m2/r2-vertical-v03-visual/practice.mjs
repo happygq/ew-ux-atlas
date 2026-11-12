@@ -1,10 +1,9 @@
-import { replay } from './practice-engine.mjs';
+import { createPracticeWorld, openPracticeCheckpoint } from './practice-engine.mjs';
 import { compactScene } from './scene-model.mjs';
 import { guides } from './practice-guide.mjs';
 
 const byId = id => document.getElementById(id);
 const actions = { Add: '添加', Remove: '移除', Recolor: '改色' };
-const roles = { BEARING_ASSEMBLY: '普通单元', COLUMN: '柱', MIXED_ROOM: '混合承托房间' };
 const colors = { PAPER: '宣纸', MIST: '雾色', SILK: '丝色', MOUNTAIN: '山色' };
 const spaces = { DOUBLE_HEIGHT: '通高空间', SEPARATE_FLOORS: '分层空间', OPEN_COURT: '庭院' };
 const roofs = { COVERED_OPAQUE: '不透光屋盖', COVERED_TRANSLUCENT: '透光屋盖', OPEN_TO_SKY: '露天', PARTIAL_COVER: '部分覆盖' };
@@ -34,10 +33,12 @@ function fillFacts(scene, buildingId) {
   const [court] = scene.courts;
   byId('court-fact').textContent = !court ? '尚无庭院决策'
     : `${court.skyConnected ? '与天空连通' : '与天空隔绝'} · ${court.voidRegionId}`;
+  const generated = scene.units.filter(unit => unit.generatedSupport);
   const [support] = scene.supports;
-  byId('support-fact').textContent = support
-    ? `${support.orientation === 'EW' ? '东西向' : '南北向'} · ${support.unitId} ← ${support.sources.map(s => s.unitId).join(' + ')}`
-    : '尚无混合承托房间';
+  byId('support-fact').textContent = generated.length
+    ? `自动支柱 ${generated.length} 根 · ${generated.map(unit => unit.unitId).join('、')}`
+    : support ? `${support.orientation === 'EW' ? '东西向' : '南北向'} · ${support.unitId} ← ${support.sources.map(s => s.unitId).join(' + ')}`
+      : '尚无自动支柱';
   const local = scene.openings.findLast(o => o.endpoints[0].buildingId === buildingId && o.kind === 'STAIR');
   const status = { ACTIVE: '已批准', INVALIDATED: '已失效', SUSPENDED: '已暂停' };
   byId('stair-fact').textContent = `${local ? `本组${status[local.status] ?? '未生效'} · ` : ''}${scene.passageIds.length} 条有效路线`;
@@ -71,7 +72,6 @@ async function start() {
 
   const tools = byId('edit-tools');
   const levelField = byId('edit-level');
-  const roleField = byId('edit-role');
   const colorButtons = [...byId('palette').querySelectorAll('button')];
   const locateTarget = byId('locate-target');
   const choicesPanel = byId('choices');
@@ -96,9 +96,9 @@ async function start() {
     byId('task-index').textContent = current ? `练习 ${taskIndex + 1} / ${guide.tasks.length}` : '练习完成';
     byId('task-title').textContent = current?.title ?? '已完成本组操作';
     byId('task-details').textContent = current?.details ?? '可以重新开始，或选择另一组练习。';
-    const { action, role } = current ?? {};
+    const { action } = current ?? {};
     byId('task-target').textContent = action
-      ? `${actions[action.type]}${role ? ` · ${roles[role]}` : ''} · 第 ${action.level} 层 · X ${action.x} · Z ${action.z}`
+      ? `${actions[action.type]} · 第 ${action.level} 层 · X ${action.x} · Z ${action.z}`
       : '';
     locateTarget.hidden = !action || !scene;
     scene?.editor.setTarget(action ?? null);
@@ -106,8 +106,7 @@ async function start() {
 
   function matches(action) {
     const current = task();
-    return current?.action && Object.entries(current.action).every(([k, value]) => action[k] === value) &&
-      (!current.role || action.supportRole === current.role);
+    return current?.action && Object.entries(current.action).every(([k, value]) => action[k] === value);
   }
 
   function updateScene() {
@@ -190,16 +189,21 @@ async function start() {
     guideId = id;
     guide = guides[id];
     const prefix = prefixes[id];
-    world = replay({ ...journal, transactions: journal.transactions.slice(0, prefix.transactions) });
+    world = prefix
+      ? openPracticeCheckpoint({ ...journal, transactions: journal.transactions.slice(0, prefix.transactions) })
+      : createPracticeWorld({ ...journal.initial, levels: 3 });
     taskIndex = 0;
     requestIndex = 0;
     knownCourts = new Map();
     rendered = null;
     clearChoices();
-    roleField.value = 'BEARING_ASSEMBLY';
+    levelField.replaceChildren(...Array.from({ length: world.state.initial.levels }, (_, index) =>
+      new Option(`第 ${index} 层`, String(index))));
     selectColor('PAPER');
     selectLayer(task()?.action?.level ?? 0);
-    byId('practice-source').textContent = `T12 第 ${prefix.sourceStep} 步 · ${guide.buildingName}`;
+    byId('practice-source').textContent = prefix
+      ? `T12 第 ${prefix.sourceStep} 步 · ${guide.buildingName}`
+      : `空场景 · ${guide.buildingName}`;
     byId('guide-title').textContent = guide.title;
     byId('guide-summary').textContent = guide.summary;
     feedback('');
@@ -220,7 +224,7 @@ async function start() {
     }
     const action = { type, x, z, level };
     if (type !== 'Remove') action.color = color;
-    if (type === 'Add') Object.assign(action, { supportRole: roleField.value, buildingId: guide.buildingId });
+    if (type === 'Add') action.buildingId = guide.buildingId;
     const result = world.submit(nextId(), action);
     if (result.status === 'PENDING_CHOICE') {
       feedback('建造已暂存。确认方案前，已提交场景保持不变。');
@@ -228,8 +232,11 @@ async function start() {
       return;
     }
     if (result.status === 'SEMANTICALLY_ADMITTED') {
-      if (matches(action) && !task().reject && !task().roofClosure) taskIndex++;
-      const suffix = type === 'Recolor' ? `已改为${colors[color]}。` : `${actions[type]}已提交。`;
+      const column = type === 'Remove' && world.state.snapshot.occupancy.find(unit =>
+        unit.x === x && unit.z === z && unit.level === level && unit.generatedSupport);
+      if (matches(action) && !task().reject && !task().roofClosure && (!task().column || column)) taskIndex++;
+      const suffix = column ? '已移除原单元，自动生成支柱承托上方。'
+        : type === 'Recolor' ? `已改为${colors[color]}。` : `${actions[type]}已提交。`;
       feedback(`第 ${level} 层（${x}，${z}）${suffix}`);
     } else {
       if (matches(action) && task().reject === result.code) taskIndex++;

@@ -14,9 +14,11 @@ Open [the local preview](http://127.0.0.1:8048/). Drag to orbit, scroll to zoom,
 
 The main timeline skips internal retries, ID conflicts, stale prefixes and injected publication failures. Use **显示全部 49 步** for the complete record. The original step numbers and `frames.json` are preserved.
 
-Open **亲自操作** or [the practice page](http://127.0.0.1:8048/practice.html) to perform the three guided scenarios. Each exercise starts from a real committed T12 checkpoint. Choose the active level, add type and color below the 3D view. Left-click a cell to add, right-click to remove, and Shift+left-click an occupied cell to recolor. Dragging still controls the camera. The orange tile indicates the current guide target. Focus the canvas to use arrow keys, Enter, Delete and Shift+Enter as keyboard equivalents. Select **柱** as the add type to build a column. The exercise header shows the building scope. Roof and stair approvals remain explicit user decisions. The local practice world resets on reload or when switching exercises.
+Open **亲自操作** or [the practice page](http://127.0.0.1:8048/practice.html) to perform three guided scenarios. Choose the active level and color below the 3D view. Left-click to add an ordinary unit, right-click to remove, and Shift+left-click an occupied cell to recolor. Dragging controls the camera. The orange tile indicates the current guide target. Focus the canvas to use arrow keys, Enter, Delete and Shift+Enter as keyboard equivalents. Roof and stair approvals remain explicit user decisions. The local practice world resets on reload or when switching exercises.
 
-Three.js and OrbitControls are vendored from the official `three@0.160.1` npm package with its MIT license. The practice bundle compiles the accepted Stage C engine for the browser with a synchronous SHA-256 adapter from `@noble/hashes`. All runtime assets load from the same static directory. The GitHub Pages path is `/g1-m2/r2-vertical-v03-visual/`.
+**承托 · 先搭建再拆除** starts from an empty three-level grid. Stack ordinary units, then remove a lower one. If the normal removal would break direct support and the same location can still provide a grounded support path, the practice policy replaces the removed unit with a new pillar in the same Remove transaction. The upper unit keeps its identity. A required pillar cannot be removed. Once it has no dependents, it can be removed normally.
+
+Three.js and OrbitControls are vendored from the official `three@0.160.1` npm package with its MIT license. The practice bundle compiles the versioned automatic-column policy on the Stage C engine for the browser with a synchronous SHA-256 adapter from `@noble/hashes`. All runtime assets load from the same static directory. The GitHub Pages path is `/g1-m2/r2-vertical-v03-visual/`.
 
 ## Data and checks
 
@@ -31,6 +33,6 @@ npm test
 
 The exporter calls Stage D `runT12()` and projects its committed states to the facts the viewer uses. The checked-in payload is 142,983 bytes. The focused check regenerates and verifies the payload, checks 49 steps, 39 published transactions and 41 authoritative events, and independently replays the journal to the final state hash. The ten nonpublishing steps reuse their preceding committed scene.
 
-The practice build verifies that the bundled browser engine replays the three starting checkpoints to the exact same state digests as the T12 witness. For user acceptance, use the controls to remove and rebuild the stair landing and then approve its new proposal, add four columns and replace the active support, and confirm and reopen the courtyard. In the support exercise, the rejected final Remove leaves the scene intact.
+The practice build verifies the two historical T12 checkpoints for the stair and courtyard exercises, then checks their starting projections under the new practice policy. The original T12 history still replays under its recorded policy. Its scripted column additions are historical evidence. In the current support exercise, pillars arise from the user's Remove action, and the rejected final Remove leaves the scene intact.
 
 The viewer shows schematic occupied cells, semantic roof tiles, selected support sources, and abstract stair approval. Physical passage stays closed. **G-V1 is OPEN. R2-A is NOT FROZEN.**

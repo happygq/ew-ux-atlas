@@ -3,8 +3,8 @@ export function compactScene(snapshot, knownCourts, lattice) {
   const currentCourts = new Map(snapshot.spaceIntents.map(intent => [intent.scopeId, intent]));
   for (const scope of currentCourts.values()) knownCourts.set(scope.scopeId, scope);
   return {
-    units: snapshot.occupancy.map(({ unitId, x, z, level, buildingId, supportRole, color }) =>
-      ({ unitId, x, z, level, buildingId, supportRole, color })),
+    units: snapshot.occupancy.map(({ unitId, x, z, level, buildingId, supportRole, color, generatedSupport }) =>
+      ({ unitId, x, z, level, buildingId, supportRole, color, ...(generatedSupport ? { generatedSupport } : {}) })),
     courts: [...knownCourts.values()].map(({ scopeId, footprint, bottomLevel, topLevel }) => {
       const intent = currentCourts.get(scopeId);
       const plane = topLevel + 1;

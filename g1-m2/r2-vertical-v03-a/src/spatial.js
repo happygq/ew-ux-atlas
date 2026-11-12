@@ -22,10 +22,11 @@ function atomsFor(config, cells, spaces) {
         const scope = scopes.get(cellKey(cx, cz, 0));
         const lane = z % SUBDIVISIONS * SUBDIVISIONS + x % SUBDIVISIONS;
         const unitId = cell?.unitId ?? null;
+        const enclosureId = cell?.generatedSupport ? null : unitId;
         atoms.set(point(x, z, y), {
-          x, y, z, cx, cz, lane, gridKey, unitId,
+          x, y, z, cx, cz, lane, gridKey, unitId, enclosureId,
           id: `volume:${point(x, z, y)}:${unitId ?? 'vacant'}`,
-          material: cell && lane === 0 ? 'SOLID' : cell && lane === 1 ? 'RESERVED_VOID' : 'AIR',
+          material: cell && lane === 0 ? 'SOLID' : enclosureId && lane === 1 ? 'RESERVED_VOID' : 'AIR',
           scope: scope && y >= scope.bottomLevel && y <= scope.topLevel ? scope : null,
         });
       }
@@ -45,6 +46,9 @@ function face(axis, negative, positive) {
 }
 
 function interfaceRule(axis, low, high) {
+  const inside = low ?? high;
+  const blocksAir = (low && low.material !== 'AIR') || (high && high.material !== 'AIR');
+  const openOrSolid = [blocksAir ? 'SPECIAL' : 'OPEN_INTERFACE', inside.id];
   if (axis === 'y') {
     if (!low) return ['GROUND', GROUND];
     const scope = low.scope;
@@ -57,18 +61,16 @@ function interfaceRule(axis, low, high) {
       if (scope.roofClosure === 'COVERED_TRANSLUCENT') return ['ROOF', scope.decisionId, 'POTENTIAL'];
       if (scope.roofClosure === 'COVERED_OPAQUE' ||
           (scope.roofClosure === 'PARTIAL_COVER' && !aperture)) return ['ROOF', scope.decisionId];
-      return ['OPEN_INTERFACE', low.id];
+      return openOrSolid;
     }
-    if (high?.unitId) return ['SLAB', high.unitId];
-    if (low.unitId) return ['ROOF', low.unitId];
-    return ['OPEN_INTERFACE', low.id];
+    if (high?.enclosureId) return ['SLAB', high.enclosureId];
+    if (low.enclosureId) return ['ROOF', low.enclosureId];
+    return openOrSolid;
   }
-  if (low?.unitId !== high?.unitId && (low?.unitId || high?.unitId)) {
-    return ['WALL', low?.unitId ?? high.unitId];
+  if (low?.enclosureId !== high?.enclosureId && (low?.enclosureId || high?.enclosureId)) {
+    return ['WALL', low?.enclosureId ?? high.enclosureId];
   }
-  const inside = low ?? high;
-  return [low && low.material !== 'AIR' || high && high.material !== 'AIR'
-    ? 'SPECIAL' : 'OPEN_INTERFACE', inside.id];
+  return openOrSolid;
 }
 
 function boundaryProjection(atoms, previous) {

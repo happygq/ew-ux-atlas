@@ -68,6 +68,12 @@ function addUnit(parent, unit, pickable) {
     }
   };
   const center = position(x + .5, level, z + .5);
+  if (unit.generatedSupport) {
+    const height = LEVEL - .02;
+    const middle = center.clone().add(new THREE.Vector3(0, height / 2 + .01, 0));
+    part(box(parent, [.23, height, .23], middle, material(color), outline));
+    return;
+  }
   const floor = center.clone().add(new THREE.Vector3(0, .075, 0));
   part(box(parent, [.92, .13, .92], floor, material(color.clone().lerp(new THREE.Color('#fff7e9'), .22)), outline));
   const height = .89;
