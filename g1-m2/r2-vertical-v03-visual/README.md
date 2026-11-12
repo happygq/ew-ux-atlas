@@ -18,7 +18,9 @@ Open **亲自操作** or [the practice page](http://127.0.0.1:8048/practice.html
 
 **承托 · 先搭建再拆除** starts from an empty three-level grid. Stack ordinary units, then remove a lower one. If the normal removal would break direct support and the same location can still provide a grounded support path, the practice policy replaces the removed unit with a new pillar in the same Remove transaction. The upper unit keeps its identity. A required pillar cannot be removed. Once it has no dependents, it can be removed normally.
 
-Three.js and OrbitControls are vendored from the official `three@0.160.1` npm package with its MIT license. The practice bundle compiles the versioned automatic-column policy on the Stage C engine for the browser with a synchronous SHA-256 adapter from `@noble/hashes`. All runtime assets load from the same static directory. The GitHub Pages path is `/g1-m2/r2-vertical-v03-visual/`.
+**南侧楼梯 · 三格换位** starts at T12 step 42. Right-click the old upper landing at `(5,4)`. The practice policy offers one deterministic new landing if the lower 2×2 is intact and the three remaining upper cells are connected and eligible. The orange dashed line is a pending candidate. Approve the new landing at `(6,4)` to activate the blue-green abstract route. The old cell remains empty and the slab remains physically closed.
+
+Three.js and OrbitControls are vendored from the official `three@0.160.1` npm package with its MIT license. The practice bundle compiles the versioned practice policy on the Stage C engine for the browser with a synchronous SHA-256 adapter from `@noble/hashes`. All runtime assets load from the same static directory. The GitHub Pages path is `/g1-m2/r2-vertical-v03-visual/`.
 
 ## Data and checks
 

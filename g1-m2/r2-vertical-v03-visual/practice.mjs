@@ -122,17 +122,24 @@ async function start() {
   function checkStairs() {
     proposalsPanel.replaceChildren();
     const context = world.openingContext();
+    const snapshot = world.state.snapshot;
     const proposals = context.proposals.filter(p => p.binding.kind === 'STAIR' &&
       p.binding.endpoints.every(e => e.buildingId === guide.buildingId));
+    const volumes = new Map(snapshot.volumeFragments.map(f => [f.id, f.bounds]));
+    const units = new Map(snapshot.occupancy.map(unit => [unit.unitId, unit]));
+    scene?.setStairCandidates(proposals.map(p => ({
+      endpoints: p.binding.endpoints.map(e => ({ bounds: volumes.get(e.volumeId) })),
+    })));
     proposalsPanel.hidden = proposals.length === 0;
     for (const proposal of proposals) {
-      proposalsPanel.append(button('批准楼梯提案', () => {
+      const { x, z } = units.get(proposal.binding.endpoints[1].unitId);
+      proposalsPanel.append(button(`批准新落点（X ${x}，Z ${z}）`, () => {
         const result = world.decideOpening(nextId(), {
           type: 'APPROVE_USER', targetId: proposal.proposalId, authorizer: operatorId,
           inputPrefixDigest: context.inputPrefixDigest,
         });
         if (result.status === 'SEMANTICALLY_ADMITTED') {
-          if (task()?.decision === 'STAIR') taskIndex++;
+          if (task()?.decision === 'STAIR' && task().footprintLength === proposal.binding.footprint.length) taskIndex++;
           feedback('已批准新的抽象楼梯通行。');
         } else feedback('无法批准当前提案。请根据最新场景重试。', true);
         updateScene();
@@ -150,6 +157,7 @@ async function start() {
   function askRoof(draft, action) {
     tools.disabled = true;
     proposalsPanel.hidden = true;
+    scene?.setStairCandidates([]);
     choicesPanel.hidden = false;
     const selects = draft.scopes.map(scope => {
       const label = document.createElement('label');

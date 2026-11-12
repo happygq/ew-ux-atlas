@@ -4,7 +4,7 @@
   "scripts": {
     "export": "node export-frames.mjs",
     "build:practice": "node prepare-practice.mjs",
-    "test": "node export-frames.mjs --check && node prepare-practice.mjs --check && node --test practice-world.test.mjs"
+    "test": "node export-frames.mjs --check && node prepare-practice.mjs --check && node --test practice-world.test.mjs practice-stair.test.mjs"
   },
   "devDependencies": {
     "@noble/hashes": "1.8.0",
