@@ -43,7 +43,7 @@ export function editEdges(edges, cells, action) {
     const pair = [key, otherKey].sort(compare);
     const edgeKey = pair.join('|');
     if (action.type === 'Remove') result.delete(edgeKey);
-    else if (cells.has(otherKey)) {
+    else if (cells.has(otherKey) && !cells.get(otherKey).generatedSupport) {
       result.set(edgeKey, {
         cells: pair,
         kind: cells.get(otherKey).color === action.color ? 'OPEN' : 'PARTITION',
@@ -56,8 +56,12 @@ export function editEdges(edges, cells, action) {
 function enclosedFootprints({ width, depth }, cells, level) {
   const seen = new Set();
   const footprints = new Map();
+  const encloses = (x, z) => {
+    const cell = cells.get(cellKey(x, z, level));
+    return cell && !cell.generatedSupport;
+  };
   for (let z = 0; z < depth; z++) for (let x = 0; x < width; x++) {
-    if (seen.has(z * width + x) || cells.has(cellKey(x, z, level))) continue;
+    if (seen.has(z * width + x) || encloses(x, z)) continue;
     const queue = [{ x, z }];
     seen.add(z * width + x);
     let exterior = false;
@@ -69,7 +73,7 @@ function enclosedFootprints({ width, depth }, cells, level) {
           continue;
         }
         const i = nz * width + nx;
-        if (seen.has(i) || cells.has(cellKey(nx, nz, level))) continue;
+        if (seen.has(i) || encloses(nx, nz)) continue;
         seen.add(i);
         queue.push({ x: nx, z: nz });
       }

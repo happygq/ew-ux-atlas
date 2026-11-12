@@ -25,7 +25,7 @@ function source(node, requirement) {
   return { nodeId: node.id, unitId: node.unitId, role: node.role, requirement };
 }
 
-function alternative(patternId, unitId, sources, orientation = null) {
+function alternative(patternId, unitId, sources, orientation = null, policyVersion = POLICY_VERSION) {
   // Source order is independent of authoring order and directional enumeration.
   const ordered = [...sources].sort((a, b) => compare(a.node.id, b.node.id));
   const requiredSources = ordered.map(({ node, requirement }) => source(node, requirement));
@@ -33,9 +33,10 @@ function alternative(patternId, unitId, sources, orientation = null) {
   return {
     id: [unitId, patternId, axis, ...requiredSources.map(s => s.nodeId)].join('/'),
     patternId, orientation: axis, priority: orientation?.priority ?? 0,
-    policyVersion: POLICY_VERSION, requiredSources,
+    policyVersion, requiredSources,
     foundationPaths: ordered.flatMap(({ node }) => node.paths.map(path => [unitId, ...path])),
     ...eligible,
+    ...(policyVersion !== POLICY_VERSION ? { policyApproval: 'APPROVED_BY_PRACTICE_POLICY' } : {}),
   };
 }
 
@@ -77,9 +78,10 @@ function supportsFor(cell, nodesAt, ground) {
       }
     }
   } else if (below?.role === 'GROUND' || below?.role === BEARING ||
-             (supportRole === COLUMN && below?.role === COLUMN)) {
-    const patternId = below.role === 'GROUND' ? 'GROUND' : 'DIRECT';
-    alternatives.push(alternative(patternId, cell.unitId, [{ node: below, requirement: patternId }]));
+             (below?.role === COLUMN && (supportRole === COLUMN || below.generatedSupport))) {
+    const patternId = below.generatedSupport ? 'DIRECT_GENERATED_COLUMN' : below.role === 'GROUND' ? 'GROUND' : 'DIRECT';
+    alternatives.push(alternative(patternId, cell.unitId, [{ node: below, requirement: patternId }],
+      null, below.generatedSupport?.policyVersion));
     if (supportRole === COLUMN) columnFooting = footingFor(below);
   }
 
@@ -110,7 +112,7 @@ function selectionChange(unitId, before, after) {
   });
   return {
     unitId, before: describe(before), after: describe(after),
-    reason: 'PREVIOUS_ALTERNATIVE_NO_LONGER_ELIGIBLE', policyVersion: POLICY_VERSION,
+    reason: 'PREVIOUS_ALTERNATIVE_NO_LONGER_ELIGIBLE', policyVersion: after.policyVersion,
   };
 }
 
@@ -143,6 +145,7 @@ function project(cells, previous) {
     const node = {
       id: unitId, unitId, role: supportRole, position: positionOf(cell), columnFooting,
       alternatives, selectedAlternativeId: selected.id,
+      ...(cell.generatedSupport ? { generatedSupport: cell.generatedSupport } : {}),
     };
     nodes.push(node);
     nodesAt.set(cellKey(x, z, level), { ...node, paths: selected.foundationPaths });

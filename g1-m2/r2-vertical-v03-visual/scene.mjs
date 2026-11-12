@@ -1,11 +1,13 @@
 import * as THREE from 'three';
 import { OrbitControls } from './vendor/OrbitControls.js';
+import { createEditor } from './scene-editor.mjs';
 
 const LEVEL = 1.42;
 const buildingColors = { east: '#586d8e', south: '#ae715a', support: '#9b8050', court: '#638679' };
+const tints = { MIST: '#a3bdbd', SILK: '#cd8b79', MOUNTAIN: '#45584f' };
 const colorFor = unit => {
   const color = new THREE.Color(buildingColors[unit.buildingId] ?? '#65726b');
-  if (unit.color !== 'PAPER') color.lerp(new THREE.Color('#d2e2e0'), .35);
+  if (tints[unit.color]) color.lerp(new THREE.Color(tints[unit.color]), .74);
   return color;
 };
 const position = (x, level, z) => new THREE.Vector3(x, level * LEVEL, -z);
@@ -55,19 +57,32 @@ function addGrid(scene, { width, depth }) {
   scene.add(new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ color: '#b5baad' })));
 }
 
-function addUnit(parent, unit) {
+function addUnit(parent, unit, pickable) {
   const { x, z, level, supportRole } = unit;
   const color = colorFor(unit);
+  const outline = buildingColors[unit.buildingId] ?? '#65726b';
+  const part = mesh => {
+    if (pickable) {
+      mesh.userData.cell = { x, z, level };
+      pickable.push(mesh);
+    }
+  };
   const center = position(x + .5, level, z + .5);
+  if (unit.generatedSupport) {
+    const height = LEVEL - .02;
+    const middle = center.clone().add(new THREE.Vector3(0, height / 2 + .01, 0));
+    part(box(parent, [.23, height, .23], middle, material(color), outline));
+    return;
+  }
   const floor = center.clone().add(new THREE.Vector3(0, .075, 0));
-  box(parent, [.92, .13, .92], floor, material(color.clone().lerp(new THREE.Color('#fff7e9'), .22)), color);
+  part(box(parent, [.92, .13, .92], floor, material(color.clone().lerp(new THREE.Color('#fff7e9'), .22)), outline));
   const height = .89;
   const middle = center.clone().add(new THREE.Vector3(0, height / 2 + .14, 0));
   if (supportRole === 'COLUMN') {
-    box(parent, [.18, height, .18], middle, material(color), color);
+    part(box(parent, [.18, height, .18], middle, material(color), outline));
   } else {
-    box(parent, [.87, height, .87], middle, material(color, level ? .28 : .35), color);
-    box(parent, [.89, .035, .89], center.clone().add(new THREE.Vector3(0, height + .15, 0)), material(color, .38));
+    part(box(parent, [.87, height, .87], middle, material(color, level ? .28 : .35), outline));
+    part(box(parent, [.89, .035, .89], center.clone().add(new THREE.Vector3(0, height + .15, 0)), material(color, .38)));
   }
 }
 
@@ -122,7 +137,7 @@ function addStair(parent, opening, lattice) {
   marker(parent, to, .072, hue, true);
 }
 
-export function createScene(host, grid) {
+export function createScene(host, grid, interaction) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.setClearAlpha(0);
@@ -148,6 +163,9 @@ export function createScene(host, grid) {
   controls.saveState();
   const paint = () => renderer.render(scene, camera);
   controls.addEventListener('change', paint);
+  const editor = interaction ? createEditor({
+    ...interaction, canvas: renderer.domElement, camera, scene, grid, levelHeight: LEVEL, paint,
+  }) : null;
 
   function resize() {
     const { clientWidth: width, clientHeight: height } = host;
@@ -166,6 +184,7 @@ export function createScene(host, grid) {
   resize();
 
   return {
+    editor,
     reset: () => controls.reset(),
     render(model) {
       for (const item of [...content.children]) {
@@ -174,7 +193,9 @@ export function createScene(host, grid) {
         content.remove(item);
       }
       const units = new Map(model.units.map(unit => [unit.unitId, unit]));
-      model.units.forEach(unit => addUnit(content, unit));
+      const pickable = editor ? [] : null;
+      model.units.forEach(unit => addUnit(content, unit, pickable));
+      editor?.setMeshes(pickable);
       model.courts.forEach(court => addCourt(content, court, grid.lattice));
       model.supports.forEach(support => addSupport(content, support, units));
       const passageIds = new Set(model.passageIds);
