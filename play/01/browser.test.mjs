@@ -194,9 +194,9 @@ try {
   assert.ok(Math.abs((await pose()).x - touchPose.x) > .25, 'Two-finger pan changed the viewpoint');
   assert.equal(await size(), u.length + 1 + compound.length + 1);
   await capture('05-touch');
-  assert.ok(await evaluate(`Array.from(document.querySelectorAll('.dock-controls button, .view-tools button')).every(button => {
+  assert.ok(await evaluate(`Array.from(document.querySelectorAll('.dock-controls button, .view-tools button, .masthead button')).every(button => {
     const bounds = button.getBoundingClientRect();
-    return bounds.left >= 0 && bounds.right <= 391 && bounds.bottom <= 845;
+    return bounds.left >= 0 && bounds.right <= 383 && bounds.bottom <= 845;
   })`), 'The mobile construction and view controls fit in the viewport');
   const denseCount = await evaluate(`(() => {
     for (let z = 19; z < 27; z++) {

@@ -66,7 +66,7 @@ h1 {
   letter-spacing: -.055em;
 }
 .title p { margin: 5px 0 0; font-size: .76rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
-.top-actions { display: flex; align-items: center; gap: 12px; pointer-events: auto; }
+.top-actions { display: flex; flex: none; align-items: center; gap: 12px; pointer-events: auto; }
 .ledger {
   display: flex;
   gap: 12px;
@@ -191,7 +191,7 @@ h1 {
   .title { gap: 8px; }
   .seal { width: 41px; height: 44px; font-size: 1.4rem; }
   h1 { font-size: 2.1rem; }
-  .title p { font-size: .61rem; letter-spacing: .11em; }
+  .title p { font-size: .61rem; letter-spacing: .11em; white-space: nowrap; }
   .top-actions { gap: 6px; }
   .ledger { gap: 6px; padding: 6px 8px; font-size: .7rem; }
   .ledger > span + span { padding-left: 6px; }
@@ -210,9 +210,14 @@ h1 {
   .swatch { width: 26px; height: 26px; }
 }
 
-@media (max-width: 380px) {
+@media (max-width: 450px) {
   .ledger { flex-direction: column; gap: 1px; align-items: flex-start; }
   .ledger > span + span { padding-left: 0; border: 0; }
+}
+
+@media (max-width: 350px) {
+  h1 { font-size: 1.85rem; }
+  .title .seal { width: 36px; height: 40px; }
 }
 
 @media (max-height: 480px) and (min-width: 540px) {

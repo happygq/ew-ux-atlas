@@ -126,7 +126,7 @@ function vegetation(scene) {
     const z = (noise(i, 15) - .5) * 147;
     const y = groundHeight(x, z);
     const rim = shore(x, z);
-    if (rim < 1.2 || y < -.74) continue;
+    if (rim < 2.4 || y < -.74) continue;
     const height = 1.6 + noise(i, 18) * 3.7;
     const rotation = noise(i, 17) * Math.PI * 2;
     if (i % 5 === 1) {
