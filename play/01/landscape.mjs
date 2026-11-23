@@ -11,7 +11,7 @@ function terrain(scene) {
   const geometry = new T.PlaneGeometry(width, width, 140, 140).rotateX(-Math.PI / 2);
   const positions = geometry.getAttribute('position');
   const colors = new Float32Array(positions.count * 3);
-  const grass = color('#a7aa99'), shade = color('#929d89'), silt = color('#aaa394');
+  const grass = color('#abac9e'), shade = color('#979e8d'), silt = color('#a9a295');
   const tint = new T.Color();
   for (let i = 0; i < positions.count; i++) {
     const x = positions.getX(i), z = positions.getZ(i);

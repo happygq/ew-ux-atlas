@@ -5,7 +5,7 @@ const root = new URL('./', import.meta.url);
 const routes = new Map([
   ['index.html', 'text/html; charset=utf-8'],
   ['style.css', 'text/css; charset=utf-8'],
-  ...['main', 'view', 'landscape', 'architecture', 'structures', 'spatial', 'world'].map(name => [name + '.mjs', 'text/javascript; charset=utf-8']),
+  ...['main', 'view', 'landscape', 'architecture', 'finishes', 'structures', 'spatial', 'world'].map(name => [name + '.mjs', 'text/javascript; charset=utf-8']),
 ]);
 const vendorPath = '/g1-m2/r2-vertical-v03-visual/vendor/three.module.min.js';
 const port = Number(process.argv[2] ?? 8080);

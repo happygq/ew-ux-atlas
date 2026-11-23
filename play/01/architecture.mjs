@@ -2,6 +2,9 @@ import * as T from '../../g1-m2/r2-vertical-v03-visual/vendor/three.module.min.j
 import { BAY, DX, DZ, PALETTES, center } from './world.mjs';
 import { DOOR, FLOOR, PASSAGE, WALL } from './spatial.mjs';
 import { buildSiteGround, buildUpper, courtGroundY } from './structures.mjs';
+import { createArchitectureMaterials, finishOf, noise, WOOD } from './finishes.mjs';
+
+export { createArchitectureMaterials, noise };
 
 const HALF = BAY / 2;
 const ARCADE_DEPTH = .88;
@@ -18,8 +21,11 @@ class Surface {
   normal = [];
   color = [];
   uv = [];
+  finishKind = [];
   plotIds = [];
   plot = -1;
+  lightPoints = [];
+  glow = null;
 
   triangle(a, b, c, color, uv, upward = false) {
     const ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
@@ -35,17 +41,20 @@ class Surface {
     }
     if (!colors.has(color)) colors.set(color, new T.Color(color));
     const tint = colors.get(color);
+    const finish = finishOf(color);
     for (const p of [a, b, c]) {
       this.position.push(...p);
       this.normal.push(n[0] / length, n[1] / length, n[2] / length);
       this.color.push(tint.r, tint.g, tint.b);
       this.uv.push(...(uv ?? solidUV)(p, n));
+      this.finishKind.push(finish);
     }
     this.plotIds.push(this.plot);
   }
 
   box(x, y, z, w, h, d, tint, rotation) {
     if (w <= 0 || h <= 0 || d <= 0) return;
+    const uv = finishOf(tint) === WOOD ? woodUV([x, y, z], [w, h, d], rotation) : undefined;
     for (let i = 0; i < cube.length; i += 9) {
       const points = [i, i + 3, i + 6].map(j => {
         const px = cube[j] * w, py = cube[j + 1] * h, pz = cube[j + 2] * d;
@@ -53,8 +62,16 @@ class Surface {
         const p = new T.Vector3(px, py, pz).applyQuaternion(rotation);
         return [x + p.x, y + p.y, z + p.z];
       });
-      this.triangle(...points, tint);
+      this.triangle(...points, tint, uv);
     }
+  }
+
+  glowBox(...args) {
+    this.glow?.box(...args);
+  }
+
+  lantern(x, y, z) {
+    this.lightPoints.push([x, y, z]);
   }
 
   beam(a, b, height, width, color) {
@@ -72,6 +89,7 @@ class Surface {
     g.setAttribute('normal', new T.Float32BufferAttribute(this.normal, 3));
     g.setAttribute('color', new T.Float32BufferAttribute(this.color, 3));
     g.setAttribute('uv', new T.Float32BufferAttribute(this.uv, 2));
+    g.setAttribute('finishKind', new T.Float32BufferAttribute(this.finishKind, 1));
     g.computeBoundingSphere();
     g.computeBoundingBox();
     const mesh = new T.Mesh(g, material);
@@ -84,6 +102,22 @@ function solidUV([x, y, z], normal) {
   const nx = Math.abs(normal[0]), ny = Math.abs(normal[1]), nz = Math.abs(normal[2]);
   if (ny >= nx && ny >= nz) return [x / 1.6, z / 1.6];
   return [nx > nz ? z / 1.6 : x / 1.6, y / 1.6];
+}
+
+function woodUV(origin, dimensions, rotation) {
+  const along = dimensions.indexOf(Math.max(...dimensions));
+  const across = [0, 1, 2].filter(axis => axis !== along);
+  const inverse = rotation?.clone().invert();
+  const seed = origin[0] * .13 + origin[1] * .39 + origin[2] * .07;
+  return (point, normal) => {
+    let p = point.map((value, axis) => value - origin[axis]);
+    if (inverse) {
+      p = new T.Vector3(...p).applyQuaternion(inverse).toArray();
+      normal = new T.Vector3(...normal).applyQuaternion(inverse).toArray();
+    }
+    const [a, b] = across;
+    return [p[Math.abs(normal[a]) > Math.abs(normal[b]) ? b : a] / .39 + seed, p[along] / 3.1];
+  };
 }
 
 const cardinal = [0, 1, 2, 3];
@@ -122,28 +156,90 @@ function localFrame(id, d) {
   const box = (surface, u, y, v, w, h, thick, tint) => surface.box(
     ...point(u, y, v), DX[d] ? thick : w, h, DX[d] ? w : thick, tint,
   );
-  return { point, box };
+  const glowBox = (surface, u, y, v, w, h, thick, tint) => (surface.glowBox ?? surface.box).call(surface,
+    ...point(u, y, v), DX[d] ? thick : w, h, DX[d] ? w : thick, tint,
+  );
+  return { point, box, glowBox };
 }
 
 function lineBox(s, frame, a, b, low, high, v, thickness, paint) {
   frame.box(s, (a + b) / 2, (low + high) / 2, v, b - a, high - low, thickness, paint);
 }
 
-function timberPost(s, frame, u, v, h, paint) {
-  frame.box(s, u, .12, v, .31, .12, .30, sidestone);
-  frame.box(s, u, .188, v, .245, .052, .242, '#85897e');
-  frame.box(s, u, (.19 + h) / 2, v, .17, h - .19, .18, paint.timber);
-  frame.box(s, u, h - .13, v, .25, .17, .25, darkWood);
+function slateStrip(tiles, a, b, c, d, color, uv = tileUV) {
+  tiles.triangle(a, b, c, color, uv, true);
+  tiles.triangle(a, c, d, color, uv, true);
 }
 
-function lattice(s, frame, at, width, low, high, v, paint, narrow) {
-  frame.box(s, at, (low + high) / 2, v - .052, width - .028, high - low - .022, .03, glass);
-  const count = narrow ? 3 : 5;
-  for (let i = 1; i < count; i++) {
-    frame.box(s, at + (i / count - .5) * width, (low + high) / 2, v + .035, .033, high - low, .035, paint.timber);
+function tileNoses(tiles, frame, left, right, lip, heightAt, color, spacing = .22) {
+  const count = Math.max(1, Math.round((right - left) / spacing));
+  const pitch = (right - left) / count;
+  const arc = [[-1, 0], [-.71, .71], [0, 1], [.71, .71], [1, 0]];
+  for (let i = 0; i < count; i++) {
+    const u = left + (i + .5) * pitch;
+    const y = heightAt(u);
+    const front = arc.map(([x, z]) => frame.point(u + pitch * x * .35, y + z * .043, lip + .02));
+    const rear = arc.map(([x, z]) => frame.point(u + pitch * x * .35, y + z * .043 + .025, lip - .093));
+    const socket = frame.point(u, y, lip + .02);
+    for (let j = 1; j < arc.length; j++) {
+      slateStrip(tiles, rear[j - 1], rear[j], front[j], front[j - 1], color);
+      tiles.triangle(socket, front[j], front[j - 1], color);
+    }
   }
-  frame.box(s, at, (low + high) / 2, v + .041, width, .035, .037, paint.timber);
-  frame.box(s, at, low, v + .043, width + .10, .07, .082, paint.trim);
+}
+
+function timberPost(s, frame, u, v, h, paint) {
+  frame.box(s, u, .128, v, .30, .13, .30, '#716c63');
+  frame.box(s, u, .197, v, .238, .058, .238, '#898078');
+  const facets = 8;
+  const ring = (i, y, radius) => {
+    const angle = (i + .5) / facets * Math.PI * 2;
+    return frame.point(u + Math.cos(angle) * radius, y, v + Math.sin(angle) * radius);
+  };
+  for (let i = 0; i < facets; i++) {
+    const a = ring(i, .223, .094), b = ring(i + 1, .223, .094);
+    const c = ring(i + 1, h, .079), d = ring(i, h, .079);
+    s.triangle(a, b, c, paint.timber);
+    s.triangle(a, c, d, paint.timber);
+  }
+  frame.box(s, u, h - .058, v, .215, .091, .215, darkWood);
+}
+
+function lattice(s, frame, at, width, low, high, v, paint, kind, lit = false) {
+  const narrow = kind === 'high' || kind === 'stone';
+  const height = high - low;
+  const count = narrow ? 1 : Math.min(3, Math.ceil(width / .68));
+  const leafWidth = width / count;
+  const wood = paint.timber;
+  const pattern = '#865d3e';
+  const border = narrow ? .035 : .065;
+  for (let i = 0; i < count; i++) {
+    const middle = at - width / 2 + leafWidth * (i + .5);
+    const open = leafWidth - border;
+    if (lit && i === Math.floor(count / 2)) {
+      frame.glowBox(s, middle, (low + high) / 2, v - .034, open, height - .046, .017, '#da8338');
+    } else {
+      frame.box(s, middle, (low + high) / 2, v - .043, open, height - .035, .019, glass);
+    }
+    for (const side of [-1, 1]) {
+      frame.box(s, middle + side * open / 2, (low + high) / 2, v + .028, border, height, .071, wood);
+    }
+    const rowCount = narrow ? 2 : 4;
+    for (let row = 1; row < rowCount; row++) {
+      const y = low + height * row / rowCount;
+      frame.box(s, middle, y, v + .035, open, .027, .043, narrow ? wood : pattern);
+    }
+    if (narrow) frame.box(s, middle, (low + high) / 2, v + .031, .026, height - .05, .051, wood);
+    else {
+      frame.box(s, middle, (low + high) / 2, v + .041, .023, height - .06, .041, pattern);
+      for (let row = 0; row < rowCount; row++) {
+        const side = row % 2 ? -1 : 1;
+        frame.box(s, middle + side * open * .24, low + height * (row + .5) / rowCount,
+          v + .037, .023, height / rowCount, .045, wood);
+      }
+    }
+  }
+  for (const y of [low + .018, high - .022]) frame.box(s, at, y, v + .04, width + .034, .057, .088, wood);
 }
 
 function galleryCanopy(s, tiles, frame, left, right, boundary, eave, paint, joins, corners) {
@@ -154,20 +250,31 @@ function galleryCanopy(s, tiles, frame, left, right, boundary, eave, paint, join
   const edgeB = joins[1] ? right : right - ARCADE_DEPTH;
   const backA = corners[0] ? left - overlap : left;
   const backB = corners[1] ? right + overlap : right;
-  const a = frame.point(backA, back, from), b = frame.point(backB, back, from);
   const c = frame.point(edgeB, front, lip), e = frame.point(edgeA, front, lip);
-  tiles.triangle(a, b, c, paint.tiles, tileUV, true);
-  tiles.triangle(a, c, e, paint.tiles, tileUV, true);
-  s.beam(e, c, .115, .14, paint.tiles);
-  lineBox(s, frame, edgeA, edgeB, front - .19, front - .07, lip - .105, .17, paint.timber);
+  let a = frame.point(backA, back, from), b = frame.point(backB, back, from);
+  for (const t of [.50, .82, 1]) {
+    const run = T.MathUtils.lerp(from, lip, t);
+    const h = T.MathUtils.lerp(back, front, t) - .054 * Math.sin(Math.PI * t);
+    const p = frame.point(T.MathUtils.lerp(backA, edgeA, t), h, run);
+    const q = frame.point(T.MathUtils.lerp(backB, edgeB, t), h, run);
+    slateStrip(tiles, a, b, q, p, paint.tiles);
+    a = p;
+    b = q;
+  }
+  s.beam(e, c, .082, .135, paint.tiles);
+  lineBox(s, frame, edgeA, edgeB, front - .196, front - .065, lip - .102, .14, paint.timber);
+  lineBox(s, frame, edgeA, edgeB, front - .121, front - .076, lip - .036, .044, darkWood);
+  tileNoses(tiles, frame, edgeA + .022, edgeB - .022, lip, () => front - .033, paint.tiles);
   if (!joins[0] && !corners[0]) timberPost(s, frame, edgeA + .13, lip - .105, front - .08, paint);
   if (!corners[1]) timberPost(s, frame, joins[1] ? edgeB - .03 : edgeB - .13, lip - .105, front - .08, paint);
   // Both angled canopy ends meet here when two sides turn into the same well.
   // Let only the clockwise member own the support at that mitre.
   if (corners[0]) timberPost(s, frame, edgeA + .02, lip - .13, front - .08, paint);
-  for (let i = .14; i < 1; i += .14) {
-    const u = T.MathUtils.lerp(backA, backB, i), v = T.MathUtils.lerp(edgeA, edgeB, i);
-    s.beam(frame.point(u, back - .073, from), frame.point(v, front - .05, lip), .078, .068, paint.timber);
+  const rafters = Math.max(4, Math.floor((edgeB - edgeA) / .31));
+  for (let i = 0; i < rafters; i++) {
+    const t = (i + .5) / rafters;
+    const u = T.MathUtils.lerp(backA, backB, t), v = T.MathUtils.lerp(edgeA, edgeB, t);
+    s.beam(frame.point(u, back - .11, from), frame.point(v, front - .074, lip - .028), .066, .062, paint.timber);
   }
   const plan = [[left, boundary], [right, boundary], [edgeB, lip], [edgeA, lip]];
   const top = plan.map(([u, v]) => frame.point(u, .10, v));
@@ -196,27 +303,29 @@ function courtFront(s, tiles, plot, d, paint, bounds) {
   const h = eave - .33;
   const edge = side => u + side * (bay / 2 + .10);
 
-  lineBox(s, frame, left, right, h - .13, h + .12, v, .24, darkWood);
-  lineBox(s, frame, left, right, h + .12, eave - .025, v, .115, paint.timber);
+  lineBox(s, frame, left, right, h - .12, h + .08, v, .22, darkWood);
+  lineBox(s, frame, left, right, h - .08, h + .04, v + .114, .025, paint.timber);
+  lineBox(s, frame, left, right, h + .08, eave - .025, v - .039, .145, '#5d3c2a');
   if (wing) {
     // Lattice screens sit behind the columns and leave a sheltered eaves walk.
     const back = v;
     const path = Math.min(DOOR, bay);
     const panels = [[left, u - path / 2], [u + path / 2, right]];
-    for (const [a, b] of panels) {
-      lineBox(s, frame, a, b, FLOOR, 1.16, back, .112, paint.timber);
-      lineBox(s, frame, a, b, 2.25, h + .04, back, .112, paint.timber);
-      if (b - a > .25) lattice(s, frame, (a + b) / 2, b - a, 1.16, 2.23, back, paint, false);
+    for (const [index, [a, b]] of panels.entries()) {
+      courtPanel(s, frame, a, b, back, 1.00, Math.min(h - .12, 2.20), h, paint,
+        (plot.id + d + index) % 4 === 0);
     }
     galleryCanopy(s, tiles, frame, left, right, bounds[d], eave, paint,
       plot.galleryJoins?.[d] ?? [false, false], plot.galleryCorners?.[d] ?? [false, false]);
   } else {
-    for (const side of [-1, 1]) timberPost(s, frame, edge(side), v, h, paint);
-    for (const [a, b] of [[left, edge(-1)], [edge(1), right]]) {
-      lineBox(s, frame, a, b, FLOOR, 1.08, v - .05, .125, paint.timber);
-      lineBox(s, frame, a, b, 2.22, h, v - .05, .125, paint.timber);
-      if (b - a > .25) lattice(s, frame, (a + b) / 2, b - a, 1.08, 2.22, v - .05, paint, false);
+    for (const side of [-1, 1]) {
+      timberPost(s, frame, edge(side), v, h, paint);
+      timberBracket(s, frame, edge(side), h - .05, v, -side, paint);
+      timberBracket(s, frame, edge(side), h - .05, v, side, paint);
     }
+    courtPanel(s, frame, left, edge(-1), v - .05, .90, Math.min(h - .12, 2.28), h, paint, true);
+    courtPanel(s, frame, edge(1), right, v - .05, .90, Math.min(h - .12, 2.28), h, paint, false);
+    if (plot.face === d) hallLantern(s, frame, edge(1) - .22, h - .105, v + .18);
     // The hall mouth is open between the load-bearing posts.
     lineBox(s, frame, edge(-1), edge(1), FLOOR, FLOOR + .061, v, .36, '#8e8572');
   }
@@ -225,40 +334,136 @@ function courtFront(s, tiles, plot, d, paint, bounds) {
   }
 }
 
-function portal(s, tiles, frame, u, v, width, high, paint, kind) {
+function courtPanel(s, frame, a, b, v, sill, head, top, paint, lit) {
+  const width = b - a;
+  if (width < .15) return;
+  lineBox(s, frame, a, b, FLOOR + .065, sill, v, .106, '#62402d');
+  lineBox(s, frame, a, b, FLOOR, FLOOR + .13, v + .014, .126, paint.timber);
+  lineBox(s, frame, a, b, head, top, v - .019, .13, paint.timber);
+  if (width < .30) return;
+  const count = Math.min(3, Math.ceil(width / .68));
+  const leaf = width / count;
+  for (let i = 0; i < count; i++) {
+    const mid = a + leaf * (i + .5);
+    lineBox(s, frame, mid - leaf * .38, mid + leaf * .38, FLOOR + .19, sill - .10, v + .049,
+      .023, i % 2 ? '#744d33' : '#6d452e');
+    frame.box(s, mid - leaf / 2 + .022, (FLOOR + sill) / 2, v + .063, .045, sill - FLOOR, .036, paint.timber);
+  }
+  lattice(s, frame, (a + b) / 2, width, sill, head, v, paint, 'screen', lit);
+}
+
+function timberBracket(s, frame, u, y, v, side, paint) {
+  const profile = [[0, 0], [.41, 0], [.35, -.067], [.245, -.091], [.13, -.18], [.058, -.285], [0, -.29]];
+  const face = depth => profile.map(([x, height]) => frame.point(u + side * x, y + height, v + depth));
+  const front = face(.094), back = face(-.094);
+  for (let i = 1; i < profile.length - 1; i++) {
+    const [a, b] = side > 0 ? [i, i + 1] : [i + 1, i];
+    s.triangle(front[0], front[a], front[b], paint.timber);
+    s.triangle(back[0], back[b], back[a], paint.timber);
+  }
+  for (let i = 0; i < profile.length; i++) {
+    const j = (i + 1) % profile.length;
+    const [a, b] = side > 0 ? [i, j] : [j, i];
+    s.triangle(front[a], back[a], back[b], darkWood);
+    s.triangle(front[a], back[b], front[b], darkWood);
+  }
+}
+
+function hallLantern(s, frame, u, y, v) {
+  frame.box(s, u, y - .08, v, .024, .16, .024, darkWood);
+  frame.box(s, u, y - .17, v, .142, .048, .139, '#663f29');
+  frame.glowBox(s, u, y - .257, v, .161, .158, .154, '#ffad49');
+  for (const side of [-1, 1]) {
+    frame.box(s, u + side * .069, y - .257, v + .078, .012, .162, .012, '#9e5529');
+    frame.box(s, u + side * .076, y - .257, v - .061, .013, .162, .013, '#9e5529');
+  }
+  frame.box(s, u, y - .343, v, .136, .046, .135, '#633923');
+  frame.box(s, u, y - .38, v, .027, .057, .023, '#813e2a');
+  s.lantern?.(...frame.point(u, y - .293, v + .18));
+}
+
+function portal(s, tiles, frame, u, v, width, high, paint, kind, wallTop) {
   const main = kind === 'main';
   const service = kind === 'service';
-  const wing = main ? .34 : service ? .15 : .24;
+  const wing = main ? .34 : service ? .14 : .22;
   const [left, right] = [u - width / 2 - wing, u + width / 2 + wing];
+  const brick = '#69635a';
+  const edge = '#93877a';
   for (const side of [-1, 1]) {
     const jamb = u + side * (width / 2 + (main ? .13 : .095));
     frame.box(s, jamb, (FLOOR + high) / 2, v + (service ? .018 : .091),
-      main ? .21 : .135, high - FLOOR, service ? .15 : .23, '#77786e');
-    if (!service) frame.box(s, jamb, .24, v + .114, main ? .27 : .19, .35, .26, '#62665f');
+      main ? .21 : .135, high - FLOOR, service ? .15 : .23, brick);
+    if (service) continue;
+    frame.box(s, jamb, (FLOOR + high) / 2, v + .204, main ? .122 : .079, high - FLOOR, .030, edge);
+    frame.box(s, jamb, .244, v + .114, main ? .27 : .19, .25, .26, '#5f594f');
+    frame.box(s, jamb, .389, v + .121, main ? .24 : .17, .056, .249, '#817367');
+    frame.box(s, jamb, high - .077, v + .116, main ? .27 : .19, .084, .26, brick);
   }
-  lineBox(s, frame, left, right, high, high + (main ? .15 : .105),
-    v + (service ? .02 : .106), service ? .17 : .26, '#686c63');
+  lineBox(s, frame, left, right, high, high + (service ? .091 : .111),
+    v + (service ? .02 : .106), service ? .17 : .27, brick);
   if (service) return;
-  lineBox(s, frame, left + .065, right - .065, high + .15, high + (main ? .35 : .26), v + .105, .213, '#8f8e7e');
+
+  const scale = Math.min(1, Math.max(.72, (wallTop - high + .12) / .56));
+  const layer = (inset, from, to, depth, thickness, tint) => lineBox(s, frame, left + inset, right - inset,
+    high + from * scale, high + to * scale, v + depth, thickness, tint);
+  layer(.08, .11, .228, .124, .211, '#817469');
+  layer(.039, .182, .221, .237, .072, '#918478');
+  layer(.009, .225, .263, .257, .091, '#5e564e');
+  layer(-.028, .270, .306, .273, .105, edge);
   if (main) {
-    lineBox(s, frame, u - .41, u + .41, high + .20, high + .32, v + .235, .046, darkWood);
+    const relief = .111 + .282 * scale;
+    layer(.016, .304, .404, .239, .184, brick);
+    layer(-.054, .405, .435, .271, .188, '#aaa197');
+    lineBox(s, frame, u - width * .24, u + width * .24, high + .317 * scale,
+      high + .385 * scale, v + .342, .033, '#9d9184');
     for (const side of [-1, 1]) {
-      for (let tier = 0; tier < 3; tier++) {
-        frame.box(s, u + side * (.56 + tier * .075), high + .225 + tier * .034,
-          v + .234, .175, .036, .032, tier % 2 ? '#a09c89' : '#787a70');
+      for (let detail = 0; detail < 3; detail++) {
+        const x = u + side * (width * .29 + .087 * detail);
+        frame.box(s, x, high + (.345 + .014 * (detail % 2)) * scale, v + .344,
+          .066, .032, .034, '#a59785');
+        frame.box(s, x, high + .209 * scale, v + .279, .073, .034, .029, '#a49988');
       }
+      frame.box(s, u + side * (width / 2 + .095), high + .284 * scale, v + relief,
+        .13, .106, .094, '#786c60');
     }
   }
-  // The rain hood projects over the stone portal without touching the lintel opening.
-  const outer = v + (main ? .39 : .25);
-  const rise = main ? .439 : .319, fall = main ? .335 : .26;
-  const a = frame.point(left - .06, high + rise, v - .018);
-  const b = frame.point(right + .06, high + rise, v - .018);
-  const c = frame.point(right + .06, high + fall, outer);
-  const e = frame.point(left - .06, high + fall, outer);
-  tiles.triangle(a, b, c, paint.tiles, tileUV, true);
-  tiles.triangle(a, c, e, paint.tiles, tileUV, true);
-  s.beam(e, c, .094, .117, paint.tiles);
+  portalHood(s, tiles, frame, u, (right - left) / 2, v, high, scale, paint, main);
+}
+
+function portalHood(s, tiles, frame, u, span, v, high, scale, paint, main) {
+  const width = span + (main ? .17 : .093);
+  const reach = main ? .51 : .37;
+  const base = (main ? .475 : .355) * scale;
+  const rise = main ? .19 : .095;
+  const shape = station => {
+    const t = Math.abs(station);
+    const sweep = Math.pow(t, 4) * rise;
+    return {
+      rear: frame.point(u + station * (width - .063), high + base + .098 + .52 * sweep, v + .066),
+      mid: frame.point(u + station * (width - .025), high + base + .028 + .81 * sweep, v + reach * .65),
+      lip: frame.point(u + station * width, high + base + sweep, v + reach),
+    };
+  };
+  const rows = ['rear', 'mid', 'lip'];
+  const stations = main ? [-1, -.88, -.69, -.42, 0, .42, .69, .88, 1] : [-1, -.64, 0, .64, 1];
+  let last = shape(stations[0]);
+  for (const station of stations.slice(1)) {
+    const section = shape(station);
+    for (let i = 0; i < 2; i++) {
+      const a = last[rows[i]], b = section[rows[i]], c = section[rows[i + 1]], d = last[rows[i + 1]];
+      tiles.triangle(a, b, c, paint.tiles, tileUV, true);
+      tiles.triangle(a, c, d, paint.tiles, tileUV, true);
+    }
+    const under = point => [point[0], point[1] - .026, point[2]];
+    s.beam(under(last.lip), under(section.lip), .061, .101, '#373530');
+    last = section;
+  }
+  const ends = Math.ceil(width * 2 / .115);
+  for (let i = 1; i < ends; i++) {
+    const t = i / ends * 2 - 1;
+    const [, y] = shape(t).lip;
+    frame.box(s, u + t * width, y + .007, v + reach - .008, .070, .054, .084, paint.tiles);
+  }
 }
 
 const windowSizes = {
@@ -268,24 +473,46 @@ const windowSizes = {
 };
 
 function dressWindow(s, frame, kind, u, width, low, high, v, paint) {
-  lattice(s, frame, u, width, low, high, v, paint, kind === 'high');
-  if (kind !== 'stone') return;
-  const a = u - width / 2 - .10, b = u + width / 2 + .10;
-  for (const side of [-1, 1]) {
-    frame.box(s, u + side * (width / 2 + .05), (low + high) / 2, v + .03,
-      .10, high - low, .075, '#898d81');
+  if (kind === 'lattice') {
+    lattice(s, frame, u, width, low, high, v, paint, kind);
+    return;
   }
-  lineBox(s, frame, a - .035, b + .035, high, high + .105, v + .042, .115, '#797f74');
-  lineBox(s, frame, a, b, low - .085, low, v + .048, .127, '#85897e');
+  // The small lane window sits in a recessed brick/stone opening.
+  const decorated = kind === 'stone';
+  const surround = decorated ? .093 : .052;
+  const a = u - width / 2 - surround, b = u + width / 2 + surround;
+  const stone = decorated ? '#837a6e' : '#6b645b';
+  lattice(s, frame, u, width, low, high, v - .088, paint, kind);
+  for (const side of [-1, 1]) {
+    frame.box(s, u + side * (width / 2 + surround / 2), (low + high) / 2, v + .013,
+      surround, high - low, decorated ? .083 : .063, stone);
+  }
+  lineBox(s, frame, a - .035, b + .035, high, high + .063, v + .033, .105, stone);
+  lineBox(s, frame, a, b, low - .065, low, v + .043, .125, stone);
+  if (decorated) {
+    lineBox(s, frame, a - .057, b + .057, high + .065, high + .113, v + .046, .165, '#55524a');
+    lineBox(s, frame, a - .018, b + .018, low - .083, low - .055, v + .057, .104, '#94897b');
+  }
 }
 
 function gateJoinery(s, frame, u, v, width, high, paint, reveal) {
   const timber = paint.accent ?? paint.timber;
   for (const side of [-1, 1]) {
-    const jamb = u + side * (width / 2 + .055);
-    frame.box(s, jamb, (FLOOR + high) / 2, v - .25, .078, high - FLOOR - .11, .48, timber);
-    for (const y of [FLOOR + .17, high - .24]) frame.box(s, jamb, y, v - .26, .092, .052, .482, darkWood);
-    frame.box(s, jamb - side * .041, FLOOR + .93, v - .42, .031, .054, .055, '#aa9670');
+    const jamb = u + side * (width / 2 + .066);
+    const leafDepth = Math.min(.60, width * .46);
+    const height = high - FLOOR - .16;
+    const leafMid = v - leafDepth / 2 - .029;
+    frame.box(s, jamb, FLOOR + .081 + height / 2, leafMid, .079, height, leafDepth, timber);
+    const planks = ['#5e3e2d', '#63412d', '#6b4732', '#593b2b'];
+    for (let i = 0; i < planks.length; i++) {
+      const z = leafMid + (i - 1.5) * leafDepth / 4;
+      frame.box(s, jamb - side * .039, FLOOR + .081 + height / 2, z, .029, height - .071,
+        leafDepth / 4 - .008, planks[i]);
+    }
+    for (const y of [FLOOR + .19, high - .27]) {
+      frame.box(s, jamb, y, leafMid, .106, .052, leafDepth - .012, darkWood);
+    }
+    frame.box(s, jamb - side * .045, FLOOR + .94, v - leafDepth + .054, .035, .077, .054, '#9f8456');
     if (reveal) frame.box(s, jamb, (high + .28) / 2, v + .148, .10, high - .28, .073, timber);
   }
   if (reveal) lineBox(s, frame, u - width / 2 - .10, u + width / 2 + .10,
@@ -293,13 +520,14 @@ function gateJoinery(s, frame, u, v, width, high, paint, reveal) {
 }
 
 function lowerHallFront(s, frame, left, right, width, v, h, paint) {
-  for (const side of [-1, 1]) timberPost(s, frame, side * (width / 2 + .2), v - .075, h + .11, paint);
+  for (const side of [-1, 1]) {
+    const u = side * (width / 2 + .20);
+    timberPost(s, frame, u, v - .075, h + .11, paint);
+    timberBracket(s, frame, u, h + .10, v - .068, side, paint);
+  }
   lineBox(s, frame, left + .17, right - .17, h + .08, h + .235, v - .035, .174, paint.timber);
   for (const [a, b] of [[left + .25, -width / 2 - .2], [width / 2 + .2, right - .25]]) {
-    if (b - a > .32) {
-      lineBox(s, frame, a, b, FLOOR + .075, .82, v + .05, .085, paint.timber);
-      lattice(s, frame, (a + b) / 2, b - a, .82, Math.min(h, 1.98), v + .089, paint, false);
-    }
+    courtPanel(s, frame, a, b, v + .068, .80, Math.min(h, 2.03), h + .085, paint, false);
   }
 }
 
@@ -307,14 +535,14 @@ function buildWall(s, tiles, plot, d, paint, bounds) {
   const wall = plot.walls[d];
   const frame = localFrame(plot.id, d);
   const [ownLeft, ownRight] = sideSpan(bounds, d);
-  const [left, right] = wall.sharedSpan ?? [ownLeft, ownRight];
+  const [spanLeft, spanRight] = wall.sharedSpan ?? [ownLeft, ownRight];
   const eave = roofHeight(plot);
   const top = wall.top ?? eave;
   const lowTop = wall.lowTop ?? eave;
   if (wall.shared) {
     const masonry = Math.max(.26, WALL);
     const exterior = bounds[d] - masonry / 2;
-    for (const [from, to] of [[ownLeft, left], [right, ownRight]]) {
+    for (const [from, to] of [[ownLeft, spanLeft], [spanRight, ownRight]]) {
       if (to - from <= .001) continue;
       lineBox(s, frame, from, to, FLOOR, eave, exterior, masonry, paint.plaster);
       lineBox(s, frame, from, to, FLOOR, .265, exterior, masonry, sidestone);
@@ -325,6 +553,11 @@ function buildWall(s, tiles, plot, d, paint, bounds) {
     courtFront(s, tiles, plot, d, paint, bounds);
     return;
   }
+  // The partition sits behind the outer skin where two room faces line up.
+  const behindSkin = (side, end, outside) => wall.shared && Math.abs(end - outside) < .001
+    && !plot.walls[side].shared && !plot.walls[side].court ? .055 : 0;
+  const left = spanLeft + behindSkin(previous(d), spanLeft, ownLeft);
+  const right = spanRight - behindSkin(next(d), spanRight, ownRight);
   const thickness = wall.shared ? .14 : Math.max(.26, WALL);
   const v = bounds[d] - (wall.shared ? 0 : thickness / 2);
   const plaster = wall.shared ? paint.timber : paint.plaster;
@@ -337,13 +570,18 @@ function buildWall(s, tiles, plot, d, paint, bounds) {
   const high = entry ? Math.min(2.46, Math.min(eave, lowTop) - .4) : low + (window?.[1] ?? 0);
   const a = u - width / 2, b = u + width / 2;
   function stoneBase(from, to) {
-    lineBox(s, frame, from, to, FLOOR, .265, v, thickness + (wall.separated ? 0 : .052), sidestone);
-    lineBox(s, frame, from, to, .265, .32, v, thickness + (wall.separated ? 0 : .025), mortar);
-    if (!wall.portal && wall.window !== 'stone') return;
-    const courses = ['#777c71', '#85897e', '#74796e', '#8a8c7e'];
-    for (let start = from, i = 0; start < to - .10; start += .57, i++) {
-      const end = Math.min(start + .548, to);
-      lineBox(s, frame, start + .012, end, FLOOR + .018, .247, v + thickness / 2 + .018, .032, courses[i % courses.length]);
+    const projection = wall.separated ? 0 : .065;
+    lineBox(s, frame, from, to, .014, .13, v, thickness + projection, '#666057');
+    lineBox(s, frame, from, to, .13, .326, v, thickness + projection * .8, '#777065');
+    lineBox(s, frame, from, to, .326, .368, v, thickness + projection * .44, '#9a9182');
+    if (wall.separated || (!wall.portal && wall.window !== 'stone')) return;
+    const blocks = ['#777166', '#888074', '#6e685d', '#93887a', '#807669'];
+    for (let row = 0; row < 2; row++) {
+      const bottom = .063 + row * .132, depth = thickness / 2 + .029;
+      for (let start = from - row * .26, i = 0; start < to - .049; start += .57, i++) {
+        const left = Math.max(from + .01, start + .013), right = Math.min(start + .553, to - .01);
+        lineBox(s, frame, left, right, bottom, bottom + .119, v + depth, .035, blocks[(i + row * 2) % blocks.length]);
+      }
     }
   }
   function solid(from, to, bottom, height) {
@@ -371,15 +609,19 @@ function buildWall(s, tiles, plot, d, paint, bounds) {
       lineBox(s, frame, a - .07, b + .07, high, high + .104, v, thickness + .06, paint.timber);
       lineBox(s, frame, a, b, FLOOR, FLOOR + .031, v, thickness + .20, mortar);
       if (wall.portal) {
-        portal(s, tiles, frame, u, v, width, high, paint, wall.separated ? 'service' : wall.portal);
+        portal(s, tiles, frame, u, v, width, high, paint, wall.separated ? 'service' : wall.portal, eave);
         gateJoinery(s, frame, u, v, width, high, paint, !wall.separated);
+        if (wall.portal === 'main' && !wall.separated) {
+          lineBox(s, frame, a - .13, b + .13, .017, .07, v + thickness / 2 + .25, .38, '#777064');
+          lineBox(s, frame, a - .104, b + .104, .049, FLOOR, v + thickness / 2 + .091, .27, '#928679');
+        }
       }
       if (wall.lowerHall) lowerHallFront(s, frame, left, right, width, v, high, paint);
     }
   }
 }
 
-const roofStations = [0, .50, .78, 1];
+const roofStations = [0, .28, .52, .75, .90, 1];
 const gableCuts = {
   low: [0, .21, .79, 1],
   standard: [0, .15, .25, .75, .85, 1],
@@ -407,23 +649,61 @@ export function gableProfile(plot, d) {
   });
 }
 
-function steppedGable(s, plot, d, paint, bounds) {
-  const { point, box } = localFrame(plot.id, d);
+function wallCap(s, tiles, frame, left, right, top, v, paint, rise) {
+  const span = right - left;
+  lineBox(s, frame, left, right, top - .132, top - .071, v, .295, paint.trim);
+  lineBox(s, frame, left - .025, right + .025, top - .071, top - .025, v, .347, '#92897c');
+  lineBox(s, frame, left - .055, right + .055, top - .027, top + .018, v, .391, '#b0a99b');
+  const step = Math.min(.23, span * .35);
+  const stations = [left - .07, left + step * .13, left + step * .51, left + step,
+    right - step, right - step * .51, right - step * .13, right + .07];
+  const crown = u => top + .129 + rise[0] * Math.max(0, 1 - (u - left + .07) / (step + .07)) ** 2
+    + rise[1] * Math.max(0, 1 - (right - u + .07) / (step + .07)) ** 2;
+  const profile = u => {
+    const y = crown(u);
+    const end = Math.max(0, 1 - Math.min(u - left + .07, right + .07 - u) / (step + .07));
+    const depth = 1 - .32 * end ** 2;
+    return [
+      frame.point(u, y - .096 * depth, v - .222 * depth),
+      frame.point(u, y - .025 * depth, v - .068 * depth),
+      frame.point(u, y, v),
+      frame.point(u, y - .025 * depth, v + .068 * depth),
+      frame.point(u, y - .096 * depth, v + .222 * depth),
+    ];
+  };
+  let edge = profile(stations[0]);
+  for (const u of stations.slice(1)) {
+    const row = profile(u);
+    for (let i = 1; i < row.length; i++) slateStrip(tiles, edge[i - 1], row[i - 1], row[i], edge[i], paint.tiles);
+    for (const i of [0, row.length - 1]) {
+      const a = edge[i], b = row[i];
+      const lower = ([x, y, z]) => [x, y - .035, z];
+      slateStrip(tiles, a, b, lower(b), lower(a), paint.tiles, solidUV);
+    }
+    edge = row;
+  }
+}
+
+function steppedGable(s, tiles, plot, d, paint, bounds) {
+  const frame = localFrame(plot.id, d);
   const base = roofHeight(plot) - .04;
   const tiers = gableProfile(plot, d);
-  const center = (tiers.length - 1) / 2;
+  const middle = (tiers.length - 1) / 2;
   const v = bounds[d] - .165;
   for (const [i, { left: a, right: b, top }] of tiers.entries()) {
     const mid = (a + b) / 2;
-    box(s, mid, (top + base) / 2, v, b - a, top - base, .268, paint.plaster);
-    box(s, mid, top - .058, v, b - a, .083, .288, '#88877a');
-    box(s, mid, top + .021, v, b - a + .026, .070, .322, paint.tiles);
-    s.beam(point(a, top + .076, v), point(b, top + .076, v), .085, .125, paint.tiles);
-    for (const [end, sign] of i === center ? [[a, -1], [b, 1]] : i < center ? [[a, -1]] : [[b, 1]]) {
-      const overhang = i === 0 || i === tiers.length - 1 ? .025 : .086;
-      s.beam(point(end - sign * .14, top + .075, v), point(end + sign * overhang, top + .157, v),
-        .075, .132, paint.tiles);
-      box(s, end - sign * .085, top - .115, v, .122, .135, .289, paint.trim);
+    frame.box(s, mid, (top + base) / 2, v, b - a, top - base, .268, paint.plaster);
+    const relief = i === middle ? .164 : .135;
+    const turn = plot.role === 'wing' ? relief * .74 : relief;
+    wallCap(s, tiles, frame, a, b, top, v, paint, [i <= middle ? turn : .038, i >= middle ? turn : .038]);
+    if (b - a > .72 && !plot.roof.break[d]) {
+      lineBox(s, frame, a + .07, b - .07, top - .211, top - .187, v + .133, .026, '#aaa194');
+      for (const [end, sign] of [[a, 1], [b, -1]]) {
+        const x = end + sign * .098;
+        frame.box(s, x, top - .27, v + .136, .038, .164, .028, '#877e70');
+        s.beam(frame.point(x, top - .252, v + .15),
+          frame.point(x + sign * .084, top - .203, v + .15), .027, .028, '#877e70');
+      }
     }
   }
 }
@@ -458,7 +738,7 @@ function tileUV(p, normal) {
   return [across / 1.35, along / 1.19];
 }
 
-const slopeHeight = (eave, peak, t) => T.MathUtils.lerp(peak, eave, t) - .10 * Math.sin(t * Math.PI);
+const slopeHeight = (eave, peak, t) => T.MathUtils.lerp(peak, eave, t) - .135 * Math.sin(t * Math.PI);
 
 function upperEave(s, tiles, plot, paint, bounds) {
   if (!plot.upper) return;
@@ -468,11 +748,17 @@ function upperEave(s, tiles, plot, paint, bounds) {
   const a = Math.max(left + .06, -1.57), b = Math.min(right - .06, 1.57);
   const near = bounds[d] - .10, far = bounds[d] + .61;
   const upper = roofHeight(plot) + .03, lower = upper - .265;
-  const p = frame.point(a, upper, near), q = frame.point(b, upper, near);
-  const r = frame.point(b, lower, far), t = frame.point(a, lower, far);
-  tiles.triangle(p, q, r, paint.tiles, tileUV, true);
-  tiles.triangle(p, r, t, paint.tiles, tileUV, true);
-  s.beam(t, r, .091, .117, paint.tiles);
+  let p = frame.point(a, upper, near), q = frame.point(b, upper, near);
+  for (const t of [.49, .80, 1]) {
+    const v = T.MathUtils.lerp(near, far, t);
+    const y = T.MathUtils.lerp(upper, lower, t) - .058 * Math.sin(Math.PI * t);
+    const r = frame.point(b, y, v), l = frame.point(a, y, v);
+    slateStrip(tiles, p, q, r, l, paint.tiles);
+    p = l;
+    q = r;
+  }
+  s.beam(p, q, .073, .132, paint.tiles);
+  tileNoses(tiles, frame, a + .02, b - .02, far, () => lower - .034, paint.tiles);
   for (const u of [a + .13, (a + b) / 2, b - .13]) {
     s.beam(frame.point(u, lower - .28, bounds[d] - .14),
       frame.point(u, lower - .046, far - .13), .091, .10, paint.timber);
@@ -480,55 +766,71 @@ function upperEave(s, tiles, plot, paint, bounds) {
 }
 
 function buildRoof(s, tiles, plot, paint) {
-  const { edge, corner } = roofProfile(plot);
+  const { ridge, edge, corner } = roofProfile(plot);
   const { axis } = plot;
   const bounds = boundsOf(plot);
-  const lift = ([x, y, z]) => [x, y + .06, z];
-  s.beam(lift(edge[axis]), lift(edge[axis + 2]), .112, .163, paint.tiles);
+  const lift = ([x, y, z], amount) => [x, y + amount, z];
+  s.beam(lift(edge[axis], .033), lift(edge[axis + 2], .033), .08, .206, paint.tiles);
+  s.beam(lift(edge[axis], .089), lift(edge[axis + 2], .089), .058, .101, paint.tiles);
   for (const d of cardinal) {
     if (d % 2 === axis) {
-      if (plot.roof.gable[d] || plot.roof.break[d]) steppedGable(s, plot, d, paint, bounds);
+      if (plot.roof.gable[d] || plot.roof.break[d]) steppedGable(s, tiles, plot, d, paint, bounds);
       else if (!plot.roof.joined[d]) gableInfill(s, plot, d, paint, bounds);
       continue;
     }
     const before = previous(d), after = next(d);
-    const lipA = corner[before], lipB = corner[d];
-    // A gentle curve near the eave follows the purlin stations. Each bar
-    // pitches across its own section, including the fall towards the court.
-    function station(crest, lip, t) {
-      return [
-        T.MathUtils.lerp(crest[0], lip[0], t),
-        slopeHeight(lip[1], crest[1], t),
-        T.MathUtils.lerp(crest[2], lip[2], t),
-      ];
-    }
-    let a = edge[before], b = edge[after];
-    for (const t of roofStations.slice(1)) {
-      const c = station(edge[after], lipB, t), e = station(edge[before], lipA, t);
-      tiles.triangle(a, b, c, paint.tiles, tileUV, true);
-      tiles.triangle(a, c, e, paint.tiles, tileUV, true);
-      a = e;
-      b = c;
-    }
-    const underside = ([x, y, z]) => [x - DX[d] * .047, y - .039, z - DZ[d] * .047];
-    s.beam(underside(lipA), underside(lipB), .105, .106, paint.tiles);
     const face = plot.walls[d];
-    if ((face.court || face.portal) && !face.separated) {
-      const frame = localFrame(plot.id, d);
-      const [left, right] = sideSpan(bounds, d);
-      const length = right - left;
-      const count = Math.floor(length / .25);
-      for (let i = 1; i < count; i++) {
-        const u = T.MathUtils.lerp(left, right, i / count);
-        frame.box(s, u, roofHeight(plot) - .019, bounds[d] - .011, .088, .059, .099, paint.tiles);
+    const frame = localFrame(plot.id, d);
+    const [left, right] = sideSpan(bounds, d);
+    const width = right - left;
+    const eave = roofHeight(plot), peak = roofPeak(plot);
+    const run = Math.hypot(corner[before][0] - edge[before][0], corner[before][2] - edge[before][2]);
+    // Suppress projections at fabric joins and keep the wind-lifted ends clear of the firebreak.
+    const projects = !face.shared && !face.separated;
+    const projection = projects ? .22 : 0;
+    const liftAmount = face.court || face.portal ? .068 : .034;
+    const startLift = projects && !plot.roof.joined[before] && !plot.walls[before].shared ? liftAmount : 0;
+    const endLift = projects && !plot.roof.joined[after] && !plot.walls[after].shared ? liftAmount : 0;
+    const spanStations = startLift || endLift ? [0, .075, .22, .78, .925, 1] : [0, 1];
+    const lip = 1 + projection / run;
+    const roofHeightAt = (u, t) => {
+      const lift = startLift * Math.max(0, 1 - u / .22) ** 2
+        + endLift * Math.max(0, 1 - (1 - u) / .22) ** 2;
+      const base = t > 1 ? eave - (t - 1) * run * .30 : slopeHeight(eave, peak, t);
+      return base + lift * Math.min(t, 1) ** 4;
+    };
+    const roofPoint = (u, t) => frame.point(left + width * u, roofHeightAt(u, t), bounds[d] + (t - 1) * run);
+    // Map by continuous world stations so the canvas tiles do not restart at each purlin.
+    const uvScale = Math.hypot(run, peak - eave) / (run * 1.19);
+    const across = axis === 0 ? 2 : 0, downslope = axis === 0 ? 0 : 2;
+    const uv = point => [point[across] / 1.35, Math.abs(point[downslope] - ridge[downslope]) * uvScale];
+    let row = spanStations.map(u => roofPoint(u, 0));
+    const stations = projection ? [...roofStations, lip] : roofStations;
+    for (const t of stations.slice(1)) {
+      const nextRow = spanStations.map(u => roofPoint(u, t));
+      for (let i = 1; i < row.length; i++) slateStrip(tiles, row[i - 1], row[i], nextRow[i], nextRow[i - 1], paint.tiles, uv);
+      row = nextRow;
+    }
+    const skirt = ([x, y, z]) => [x - DX[d] * .037, y - .055, z - DZ[d] * .037];
+    for (let i = 1; i < row.length; i++) {
+      s.beam(skirt(row[i - 1]), skirt(row[i]), .112, .092, projects ? darkWood : paint.tiles);
+      s.beam(lift(row[i - 1], -.021), lift(row[i], -.021), .068, .082, paint.tiles);
+    }
+    if (projects) {
+      const v = bounds[d] + projection;
+      const heightAt = u => roofHeightAt((u - left) / width, lip);
+      tileNoses(tiles, frame, left + .023, right - .023, v, u => heightAt(u) - .038, paint.tiles);
+      const count = Math.floor(width / .31);
+      for (let i = 0; i < count; i++) {
+        const u = left + width * (i + .5) / count;
+        const y = heightAt(u);
+        s.beam(frame.point(u, y + .015, bounds[d] - .20),
+          frame.point(u, y - .106, v - .058), .061, .067, paint.timber);
       }
     }
-    if (plot.walls[d].separated) {
-      const frame = localFrame(plot.id, d);
-      const [left, right] = sideSpan(bounds, d);
-      const eave = roofHeight(plot);
+    if (face.separated) {
       lineBox(s, frame, left, right, eave - .06, eave + .28, bounds[d] - .15, .28, paint.plaster);
-      lineBox(s, frame, left, right, eave + .28, eave + .36, bounds[d] - .15, .30, paint.tiles);
+      wallCap(s, tiles, frame, left, right, eave + .28, bounds[d] - .15, paint, [0, 0]);
     }
   }
   upperEave(s, tiles, plot, paint, bounds);
@@ -589,12 +891,6 @@ function passageInterior(s, plot, paint) {
   }
 }
 
-export const noise = (a, b = 0) => {
-  let h = Math.imul(a + 31, 0x45d9f3b) ^ Math.imul(b + 71, 0x27d4eb2d);
-  h = Math.imul(h ^ (h >>> 16), 0x45d9f3b);
-  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
-};
-
 const pavers = ['#858981', '#96998e', '#92958d', '#899088', '#9ea096', '#8c9186'];
 
 function alleyFloor(s, plot) {
@@ -612,62 +908,6 @@ function alleyFloor(s, plot) {
       lineBox(s, frame, a + .014, b - .014, .008, .028, v, setback - .017, shade);
     }
   }
-}
-
-export function createArchitectureMaterials() {
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = 192;
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#b6b8b8';
-  ctx.fillRect(0, 0, 192, 192);
-  for (let row = -1; row < 7; row++) {
-    for (let col = 0; col < 9; col++) {
-      const x = col * 24, y = row * 32;
-      const shade = Math.floor(182 + noise(row, col) * 20);
-      const g = ctx.createLinearGradient(x, 0, x + 24, 0);
-      g.addColorStop(0, '#929596');
-      g.addColorStop(.19, '#d0d2d1');
-      g.addColorStop(.44, `rgb(${shade},${shade},${shade})`);
-      g.addColorStop(.87, '#c1c4c5');
-      g.addColorStop(1, '#909495');
-      ctx.fillStyle = g;
-      ctx.fillRect(x, y, 24, 32);
-      ctx.strokeStyle = '#818586';
-      ctx.lineWidth = .92;
-      ctx.beginPath();
-      ctx.moveTo(x, y + 29);
-      ctx.quadraticCurveTo(x + 12, y + 35, x + 24, y + 29);
-      ctx.stroke();
-    }
-  }
-  for (let i = 0; i < 1050; i++) {
-    ctx.fillStyle = i % 2 ? '#fff2' : '#241e1a20';
-    ctx.fillRect(noise(i, 94) * 192, noise(i, 109) * 192, 1.1, .8);
-  }
-  const map = new T.CanvasTexture(canvas);
-  map.colorSpace = T.SRGBColorSpace;
-  map.wrapS = map.wrapT = T.RepeatWrapping;
-  map.anisotropy = 8;
-  const grainCanvas = document.createElement('canvas');
-  grainCanvas.width = grainCanvas.height = 128;
-  const grain = grainCanvas.getContext('2d');
-  grain.fillStyle = '#fafafa';
-  grain.fillRect(0, 0, 128, 128);
-  for (let i = 0; i < 2650; i++) {
-    const x = noise(i, 105) * 128, y = noise(i, 132) * 128;
-    grain.fillStyle = i % 3 ? '#1614100c' : '#ffffff3f';
-    grain.fillRect(x, y, 1 + noise(i, 151) * 3.2, 1.15);
-  }
-  const grainMap = new T.CanvasTexture(grainCanvas);
-  grainMap.colorSpace = T.SRGBColorSpace;
-  grainMap.wrapS = grainMap.wrapT = T.RepeatWrapping;
-  grainMap.anisotropy = 4;
-  return {
-    solid: new T.MeshStandardMaterial({ vertexColors: true, roughness: .86, map: grainMap }),
-    roof: new T.MeshStandardMaterial({ vertexColors: true, roughness: .79, map, side: T.DoubleSide }),
-    contact: new T.MeshBasicMaterial({ color: '#384337', vertexColors: true, transparent: true,
-      side: T.DoubleSide, depthWrite: false, toneMapped: false }),
-  };
 }
 
 function courtContact(plots, material) {
@@ -701,12 +941,14 @@ function courtContact(plots, material) {
 export function buildArchitecture(plots, materials) {
   const solid = new Surface(), tiles = new Surface();
   const ground = new Surface(), features = new Surface();
+  if (materials.glow) solid.glow = new Surface();
   for (const plot of plots) {
     if (plot.kind !== 'room') {
       buildSiteGround(ground, features, plot);
       continue;
     }
     solid.plot = tiles.plot = plot.id;
+    if (solid.glow) solid.glow.plot = plot.id;
     const [x, z] = center(plot.id);
     const bounds = boundsOf(plot);
     const [north, east, south, west] = bounds;
@@ -722,18 +964,20 @@ export function buildArchitecture(plots, materials) {
     alleyFloor(ground, plot);
   }
   const group = new T.Group();
+  group.userData.lights = solid.lightPoints;
   const contact = materials.contact && courtContact(plots, materials.contact);
   if (contact) group.add(contact);
-  for (const [surface, material, buildings, castShadow] of [
+  for (const [surface, material, buildings, castShadow, receivesShadow = true] of [
     [ground, materials.solid, false, false],
     [features, materials.solid, false, true],
     [solid, materials.solid, true, true],
     [tiles, materials.roof, true, true],
+    [solid.glow, materials.glow, false, false, false],
   ]) {
-    const mesh = surface.mesh(material);
+    const mesh = surface?.mesh(material);
     if (!mesh) continue;
     mesh.castShadow = castShadow;
-    mesh.receiveShadow = true;
+    mesh.receiveShadow = receivesShadow;
     mesh.userData.buildings = buildings;
     group.add(mesh);
   }

@@ -49,10 +49,10 @@ export const neighbors = Array.from({ length: COUNT }, (_, id) => DX.map((dx, d)
 )));
 
 export const PALETTES = [
-  { name: 'Ink', plaster: '#ddd9d1', timber: '#725f55', tiles: '#4c555e', trim: '#7b766a', accent: '#6f464b', chip: '#c7a9ad' },
-  { name: 'Tea', plaster: '#dcd8cd', timber: '#6e6458', tiles: '#4e545a', trim: '#7e786b', accent: '#6e764c', chip: '#b6bd96' },
-  { name: 'Clay', plaster: '#ded8d0', timber: '#766157', tiles: '#50555b', trim: '#7f756b', accent: '#a15d43', chip: '#d1a48e' },
-  { name: 'Mist', plaster: '#d9d9d3', timber: '#65655f', tiles: '#4d5660', trim: '#767b71', accent: '#4d6c7d', chip: '#a3b8c4' },
+  { name: 'Ink', plaster: '#f0ebe4', timber: '#794d32', tiles: '#4e4c48', trim: '#847d71', accent: '#73433b', chip: '#b99183' },
+  { name: 'Tea', plaster: '#efe9df', timber: '#754d33', tiles: '#4e4d49', trim: '#868070', accent: '#717252', chip: '#ada984' },
+  { name: 'Clay', plaster: '#f1eae1', timber: '#7e5135', tiles: '#504e49', trim: '#867c70', accent: '#a95d38', chip: '#c88962' },
+  { name: 'Mist', plaster: '#ece9e4', timber: '#714a34', tiles: '#4c4c49', trim: '#807d74', accent: '#526b72', chip: '#95a6aa' },
 ];
 
 export function createWorld() {

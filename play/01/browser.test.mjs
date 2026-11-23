@@ -124,6 +124,22 @@ try {
   const courts = () => evaluate('game.inspect().model.courts.map(c => c.kind)');
   const pose = () => evaluate('game.inspect().camera');
   const holdVisible = () => evaluate('!document.querySelector("#hold-meter").hidden');
+  async function frameArchitecture([x, z], span, orbit, pitch) {
+    const [focusX, focusZ] = center(cell(x, z));
+    await evaluate(`game.focus(${x}, ${z}, ${span})`);
+    await until(`(() => {
+      const camera = game.inspect().camera;
+      return Math.hypot(camera.x - ${focusX}, camera.z - ${focusZ}) < .2 && Math.abs(camera.span - ${span}) < .2;
+    })()`, 'Architecture focus');
+    const current = await pose();
+    const turn = Math.atan2(Math.sin(current.orbit - orbit), Math.cos(current.orbit - orbit));
+    const dx = Math.round(turn / .008), dy = Math.round((pitch - current.pitch) / .007);
+    await drag([710, 390], [710 + dx, 390 + dy]);
+    await until(`(() => {
+      const camera = game.inspect().camera;
+      return Math.abs(Math.sin((camera.orbit - ${orbit}) / 2)) < .016 && Math.abs(camera.pitch - ${pitch}) < .026;
+    })()`, 'Architecture camera');
+  }
   async function addByClick(coords) {
     const previous = await size();
     await click(await project(coords));
@@ -261,6 +277,10 @@ try {
     await until('game.inspect().camera.pitch < 1', 'Angled wide courtyard');
     await pause(500);
     await captureScene('11-wide-court-desktop');
+    await frameArchitecture([20, 21], 24, .28, -.035);
+    await captureScene('15-street-gate-and-gables');
+    await frameArchitecture([20, 19], 15, .10, .60);
+    await captureScene('16-courtyard-timber');
   }
   await button('#overview');
   await until(`game.inspect().camera.span > ${HALF * 2.25}`, 'Overview');
@@ -270,12 +290,14 @@ try {
   await send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 });
   await evaluate('game.focus(15, 13, 32)');
   await until('Math.abs(game.inspect().camera.span - 32) < .3', 'Mobile focus');
-  const touch = (type, positions) => send('Input.dispatchTouchEvent', {
-    type, touchPoints: positions.map(([x, y], id) => ({ x, y, id })),
+  const touch = (type, positions, timestamp) => send('Input.dispatchTouchEvent', {
+    type, touchPoints: positions.map(([x, y], id) => ({ x, y, id })), timestamp,
   });
   async function tap(at) {
-    await touch('touchStart', [at]);
-    await touch('touchEnd', []);
+    // A slow software-rendered frame should not turn a synthetic tap into a hold.
+    const pressedAt = Date.now() / 1000;
+    await touch('touchStart', [at], pressedAt);
+    await touch('touchEnd', [], pressedAt + .06);
     await twoFrames();
   }
   const settledBayCount = u.length + 1 + compound.length;
@@ -358,13 +380,17 @@ try {
     await send('Page.navigate', { url: url + '?view=village' });
     await until('location.search === "?view=village" && !!document.querySelector("#valley")', 'Village view');
     await evaluate('import("./main.mjs").then(module => { window.game = module.game; })');
+    await evaluate('game.edit({ type: "add", x: 11, z: 9 })');
+    await frameArchitecture([11, 9], 11.5, .58, .39);
+    await captureScene('14-single-bay');
+    await evaluate('game.edit({ type: "undo" })');
+    await frameArchitecture([10, 10], 56, .61, .74);
     const ring = JSON.stringify([...u, gate]);
     await evaluate(`(() => {
       const origins = [[6, 7], [11, 7], [6, 12], [11, 12]];
       origins.forEach(([ox, oz], palette) => ${ring}.forEach(([x, z]) => {
         game.edit({ type: 'add', x: ox + x - 9, z: oz + z - 9, palette });
       }));
-      game.focus(10, 10, 56);
     })()`);
     await until('Math.abs(game.inspect().camera.span - 56) < .3', 'Village focus');
     assert.equal(await evaluate('game.inspect().model.compounds.length'), 4);

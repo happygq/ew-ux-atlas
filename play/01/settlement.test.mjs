@@ -4,6 +4,7 @@ import * as T from '../../g1-m2/r2-vertical-v03-visual/vendor/three.module.min.j
 import { AREA, BAY, COUNT, DX, DZ, HALF, SIZE, atPoint, bankDistance, buildable, cell, center, createWorld, neighbors, opposite } from './world.mjs';
 import { PASSAGE, ROOM_AREA, SETBACK, derive, plotSignature, reachablePlots } from './spatial.mjs';
 import { buildArchitecture, gableProfile, noise, roofProfile } from './architecture.mjs';
+import { WOOD } from './finishes.mjs';
 import { apply, compound, gate, u } from './test-fixtures.mjs';
 
 function add(world, points, palette = 0) {
@@ -433,6 +434,32 @@ test('a lower roof meets solid high-side masonry and no wall openings depend on 
   const windowPlan = roles(add(createWorld(), first), first);
   assert.deepEqual(roles(add(createWorld(), moved), moved), windowPlan);
   assert.ok(windowPlan.flat().every(([opening, window]) => !opening || !window));
+});
+
+test('swept entrance hood and projecting eaves preserve the gateway and joined roof', () => {
+  const yard = add(createWorld(), [...u, gate]);
+  const house = yard.plots[cell(...gate)];
+  const [gx, gz] = center(house.id);
+  const entrance = meshRay([house]);
+  const hoodAt = offset => entrance([gx + offset, 4, gz + 2.84], [0, -1, 0], 1.3)[0]?.point.y;
+  assert.ok(hoodAt(1.25) - hoodAt(0) > .10, 'The principal door hood has a real raised end');
+  assert.equal(entrance([gx + .62, 1.74, gz - 2.8], [0, 0, 1], 5.6).length, 0);
+  const row = add(createWorld(), [[7, 7], [8, 7], [9, 7]]);
+  const [first, second] = row.rooms.map(room => row.plots[room.id]);
+  const [x, z] = center(first.id);
+  const roof = meshRay([first, second]);
+  for (const off of [0, 2.67]) {
+    const height = shift => roof([x + BAY / 2 + shift, 6, z + off], [0, -1, 0], 4)[0]?.point.y;
+    const h = height(0);
+    assert.ok(Number.isFinite(h) && Math.abs(height(-.001) - h) < .006 && Math.abs(height(.001) - h) < .006,
+      'The ridge and projecting eave are continuous across room boundaries');
+  }
+  for (const off of [-.04, 0, .04]) {
+    const face = roof([x + BAY / 2 + off, 1.55, z + 2.8], [0, 0, -1], .34);
+    assert.ok(face.length > 0);
+    assert.ok(face.every(hit => hit.object.geometry.getAttribute('finishKind').getX(hit.face.a) !== WOOD),
+      'Interior timber stays behind the continuous external plaster skin');
+  }
 });
 
 test('independent homes link their forecourts and retain measurable compact annex space', () => {

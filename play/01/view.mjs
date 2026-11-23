@@ -23,9 +23,9 @@ function free(group) {
 function makeSky() {
   const material = new T.ShaderMaterial({
     uniforms: {
-      horizon: { value: new T.Color('#e6e9d5') },
-      zenith: { value: new T.Color('#83aabe') },
-      sunlight: { value: new T.Color('#f9e6ba') },
+      horizon: { value: new T.Color('#efeee7') },
+      zenith: { value: new T.Color('#adc2ca') },
+      sunlight: { value: new T.Color('#f8e9d2') },
       sunDirection: { value: SUN.clone().normalize() },
     },
     vertexShader: `
@@ -62,20 +62,20 @@ export function createView(canvas, onFrame) {
   renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.75));
   renderer.outputColorSpace = T.SRGBColorSpace;
   renderer.toneMapping = T.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.13;
+  renderer.toneMappingExposure = 1.24;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = T.PCFShadowMap;
   renderer.shadowMap.autoUpdate = false;
 
   const scene = new T.Scene();
-  scene.background = new T.Color('#e6e9d5');
-  scene.fog = new T.Fog('#e6e9d5', 115, 440);
+  scene.background = new T.Color('#efeee7');
+  scene.fog = new T.Fog('#efeee7', 115, 440);
   const sky = makeSky();
   scene.add(sky);
   const camera = new T.PerspectiveCamera(FOV, 1, .08, 1400);
   const target = { ...START };
   const current = { ...START };
-  const sun = new T.DirectionalLight('#ffedd1', 2.23);
+  const sun = new T.DirectionalLight('#fff1df', 2.46);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.radius = 2.4;
@@ -83,8 +83,8 @@ export function createView(canvas, onFrame) {
   sun.shadow.bias = -.00013;
   sun.shadow.camera.near = 3;
   sun.shadow.camera.far = 240;
-  scene.add(sun, sun.target, new T.HemisphereLight('#e1ecf2', '#82755c', 2.15));
-  const skyFill = new T.DirectionalLight('#c3d3da', .46);
+  scene.add(sun, sun.target, new T.HemisphereLight('#e7edf2', '#8d8074', 2.28));
+  const skyFill = new T.DirectionalLight('#dbe4e9', .57);
   skyFill.position.set(24, 12, -32);
   scene.add(skyFill);
 
@@ -95,6 +95,8 @@ export function createView(canvas, onFrame) {
   const effects = [];
   const board = new T.Group();
   scene.add(board);
+  const lanterns = Array.from({ length: 6 }, () => new T.PointLight('#ffa94f', 0, 2.4, 2));
+  scene.add(...lanterns);
   const line = new T.LineLoop(
     new T.BufferGeometry().setFromPoints([
       new T.Vector3(-1, 0, -1), new T.Vector3(1, 0, -1),
@@ -231,6 +233,22 @@ export function createView(canvas, onFrame) {
     }
   }
 
+  function lightCourtyards() {
+    const candidates = [];
+    for (const group of board.children) {
+      for (const [x, y, z] of group.userData.lights) {
+        const squaredRange = (x - current.x) ** 2 + (z - current.z) ** 2;
+        if (squaredRange < 34 ** 2) candidates.push({ x, y: y + group.position.y, z, squaredRange });
+      }
+    }
+    candidates.sort((a, b) => a.squaredRange - b.squaredRange);
+    for (const [index, lamp] of lanterns.entries()) {
+      const source = candidates[index];
+      lamp.intensity = source ? 2.8 : 0;
+      if (source) lamp.position.set(source.x, source.y, source.z);
+    }
+  }
+
   function frame(now) {
     draw = 0;
     const smoothing = 1 - .75 ** clamp((now - lastFrame) / (1000 / 60), .65, 5);
@@ -266,6 +284,7 @@ export function createView(canvas, onFrame) {
       effects.splice(i, 1);
     }
     board.updateMatrixWorld(true);
+    lightCourtyards();
     onFrame(current);
     if (needsShadows) renderer.shadowMap.needsUpdate = true;
     needsShadows = false;

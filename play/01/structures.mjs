@@ -4,7 +4,7 @@ import { FLOOR as floor } from './spatial.mjs';
 const half = BAY / 2;
 const stone = '#8d9189';
 const stoneMold = '#747b71';
-const paving = ['#92968f', '#a0a296', '#969a91', '#a4a497', '#9da298'];
+const paving = ['#979185', '#a49c8c', '#9d9689', '#a6a091', '#948d80'];
 const plank = '#776655';
 const dark = '#4f4338';
 const channel = '#525b55';
@@ -194,21 +194,56 @@ export function buildUpper(solid, plot, paint) {
 
   const height = plot.roof.eave - deck;
   const inner = half - .255;
+  const screen = '#795037';
+  const screenHead = Math.min(height - .43, 2.37);
+  const screenRails = [.67, 1.02, 1.43, 1.86, screenHead];
   for (const u of [-2.08, -1.26, 1.26, 2.08]) {
     f.box(solid, u, deck + height / 2 - .08, inner, .142, height - .17, .18, paint.timber);
+    f.box(solid, u, deck + height - .286, inner + .025, .207, .177, .224, dark);
   }
   for (const side of [-1, 1]) {
-    f.box(solid, side * 1.69, deck + .31, inner, .72, .59, .13, paint.timber);
-    for (const t of [-.25, -.08, .08, .25]) {
-      f.box(solid, side * 1.69 + t, deck + 1.20, inner, .034, 1.13, .038, paint.timber);
+    const mid = side * 1.69;
+    f.box(solid, mid, deck + .322, inner, .74, .615, .125, paint.timber);
+    f.box(solid, mid, deck + .326, inner + .07, .61, .453, .044, '#734930');
+    const light = side === -1 ? (solid.glowBox ?? solid.box) : solid.box;
+    light.call(solid, ...f.at(mid, deck + (.67 + screenHead) / 2, inner - .03),
+      DX[facing] ? .027 : .66, screenHead - .67, DX[facing] ? .66 : .027, side === -1 ? '#da8338' : dark);
+    for (const y of screenRails) {
+      f.box(solid, mid, deck + y, inner + .052, .73, .043, .066, screen);
     }
+    for (const u of [-.345, 0, .345]) {
+      f.box(solid, mid + u, deck + (.67 + screenHead) / 2, inner + .061, .036, screenHead - .61, .073, paint.timber);
+    }
+    for (let i = 1; i < screenRails.length; i++) {
+      const low = screenRails[i - 1], top = screenRails[i];
+      for (const offset of [-1, 1]) {
+        f.box(solid, mid + offset * (i % 2 ? .121 : .227), deck + (low + top) / 2, inner + .061,
+          .029, top - low, .052, paint.timber);
+      }
+    }
+    f.box(solid, mid, deck + (screenHead + height - .32) / 2, inner, .74, height - .32 - screenHead, .097, paint.timber);
   }
   f.box(solid, 0, plot.roof.eave - .18, inner, BAY - .44, .34, .22, dark);
   f.box(solid, 0, deck - .075, half + .14, 2.76, .15, .78, plank);
+  f.box(solid, 0, deck - .096, half + .515, 2.79, .18, .097, screen);
   const outer = half + .49;
-  f.box(solid, 0, deck + .94, outer, 2.80, .074, .085, paint.timber);
-  for (let i = -5; i <= 5; i++) f.box(solid, i * .259, deck + .47, outer, .052, .91, .064, paint.timber);
-  for (const side of [-1, 1]) {
-    f.box(solid, side * 1.374, deck + .46, half + .14, .07, .91, .71, paint.timber);
+  f.box(solid, 0, deck + .91, outer, 2.80, .080, .103, paint.timber);
+  f.box(solid, 0, deck + .17, outer, 2.76, .091, .089, screen);
+  for (let i = -2; i <= 2; i++) {
+    const mid = i * .539;
+    for (const side of [-1, 1]) {
+      f.box(solid, mid + side * .251, deck + .51, outer, .051, .748, .068, paint.timber);
+      f.box(solid, mid + side * .095, deck + .54, outer, .042, .631, .047, screen);
+      f.box(solid, mid + side * .161, deck + (side === 1 ? .365 : .692), outer, .176, .047, .054, screen);
+    }
+    f.box(solid, mid, deck + .526, outer, .44, .047, .051, screen);
   }
+  for (const side of [-1, 1]) {
+    const u = side * 1.365;
+    f.box(solid, u, deck + .89, half + .143, .087, .085, .715, paint.timber);
+    for (const offset of [-.13, .14, .35]) {
+      f.box(solid, u, deck + .475, half + offset, .061, .81, .065, screen);
+    }
+  }
+  solid.lantern?.(...f.at(-1.23, deck + 2.18, half + .25));
 }
