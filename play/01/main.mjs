@@ -1,4 +1,4 @@
-import { BAY, HALF, PALETTES, SIZE, center, createWorld, xOf, zOf } from './world.mjs';
+import { BAY, HALF, PALETTES, SIZE, cell, center, createWorld, xOf, zOf } from './world.mjs';
 import { derive } from './spatial.mjs';
 import { createView } from './view.mjs';
 
@@ -7,6 +7,7 @@ const status = element('notice');
 const canvas = element('valley');
 const map = element('map');
 const mapContext = map.getContext('2d');
+const mapBase = document.createElement('canvas');
 const holdMeter = element('hold-meter');
 const HOLD_MS = 550;
 const DRAG_PIXELS = 7;
@@ -18,6 +19,7 @@ let holdTarget = null;
 let view;
 holdMeter.style.setProperty('--hold-time', `${HOLD_MS}ms`);
 const mapBounds = { left: 40, top: 16, width: 184, height: 184 };
+element('map-size').textContent = `${BAY * SIZE} × ${BAY * SIZE} m`;
 const swatches = PALETTES.map(({ name, chip }, i) => {
   const button = document.createElement('button');
   button.type = 'button';
@@ -35,17 +37,23 @@ const swatches = PALETTES.map(({ name, chip }, i) => {
   return button;
 });
 
-function drawMap(camera) {
-  const ctx = mapContext;
+function drawMapBase() {
+  mapBase.width = map.width;
+  mapBase.height = map.height;
+  const ctx = mapBase.getContext('2d');
   const { left, top, width, height } = mapBounds;
   ctx.fillStyle = '#678d86';
   ctx.fillRect(0, 0, map.width, map.height);
-  ctx.fillStyle = '#9fa573';
-  ctx.beginPath();
-  ctx.roundRect(left - 9, top - 7, width + 17, height + 14, 10);
-  ctx.fill();
+  const px = width / SIZE, py = height / SIZE;
   ctx.fillStyle = '#b0b683';
-  ctx.fillRect(left, top, width, height);
+  ctx.beginPath();
+  for (let z = 0; z < SIZE; z++) {
+    for (let x = 0; x < SIZE; x++) {
+      if (cell(x, z) >= 0) ctx.rect(left + px * x, top + py * z, px + .03, py + .03);
+    }
+  }
+  ctx.fill();
+  ctx.clip();
   ctx.strokeStyle = '#e7e0b647';
   ctx.lineWidth = 1;
   for (let i = 0; i <= 6; i++) {
@@ -57,6 +65,12 @@ function drawMap(camera) {
     ctx.lineTo(left + width, top + height * t);
     ctx.stroke();
   }
+}
+
+function drawMap(camera) {
+  const ctx = mapContext;
+  const { left, top, width, height } = mapBounds;
+  ctx.drawImage(mapBase, 0, 0);
   const px = width / SIZE, py = height / SIZE;
   for (const room of model.rooms) {
     const x = left + xOf(room.id) * px, y = top + zOf(room.id) * py;
@@ -127,20 +141,21 @@ function edit(command) {
   return result;
 }
 
-function place(target, elapsed) {
+function place(target, removing, mouse) {
+  if (removing) {
+    if (target.building) edit({ type: 'remove', x: xOf(target.id), z: zOf(target.id) });
+    return;
+  }
   if (target.id < 0) {
     status.textContent = 'Choose a plot inside the valley.';
     return;
   }
-  if (target.occupied && !target.building) {
-    status.textContent = 'Tap an open plot, or hold a roof to remove a bay.';
+  if (target.occupied) {
+    status.textContent = mouse ? 'Left-click open ground to build. Right-click a building to remove.'
+      : 'Tap open ground to build. Hold a roof until the removal ring fills.';
     return;
   }
-  if (target.building && elapsed < HOLD_MS) {
-    status.textContent = 'Hold the roof until the ring fills, then release to remove it.';
-    return;
-  }
-  edit({ type: target.building ? 'remove' : 'add', x: xOf(target.id), z: zOf(target.id), palette });
+  edit({ type: 'add', x: xOf(target.id), z: zOf(target.id), palette });
 }
 
 function bindSceneControls() {
@@ -164,19 +179,21 @@ function bindSceneControls() {
   }
   canvas.addEventListener('contextmenu', event => event.preventDefault());
   canvas.addEventListener('pointerdown', event => {
-    if (event.pointerType === 'mouse' && event.button > 2) return;
+    const mouse = event.pointerType === 'mouse';
+    if (mouse && event.button > 2) return;
     if (!pointers.size) gesture = false;
     const at = point(event);
-    const pan = event.button !== 0 || event.shiftKey;
-    gesture ||= pointers.size > 0 || pan;
+    const right = mouse && event.button === 2 && !event.shiftKey;
+    const pan = mouse && (event.button !== 0 || event.shiftKey);
+    gesture ||= pointers.size > 0 || (pan && !right);
     const target = gesture ? null : view.locate(...at);
-    pointers.set(event.pointerId, { at, start: at, pan, target, pressedAt: event.timeStamp });
+    pointers.set(event.pointerId, { at, start: at, pan, target, right, mouse, button: event.button, pressedAt: event.timeStamp });
     canvas.setPointerCapture(event.pointerId);
     hover = gesture ? null : at;
     if (gesture) {
       clearHold();
       canvas.classList.add('dragging');
-    } else if (target?.building) {
+    } else if (!mouse && target?.building) {
       showHold(target, at);
     }
     view.requestDraw();
@@ -214,11 +231,13 @@ function bindSceneControls() {
     const pointer = pointers.get(event.pointerId);
     if (!pointer) return;
     const at = point(event);
-    if (event.type === 'pointerup' && !gesture && pointers.size === 1 && !moved(at, pointer.start)) {
+    if (event.type === 'pointerup' && !gesture && pointers.size === 1 && !moved(at, pointer.start)
+      && (!pointer.mouse || pointer.button === event.button)) {
       const current = view.locate(...at);
       if (current.id === pointer.target.id && current.building === pointer.target.building
         && current.occupied === pointer.target.occupied) {
-        place(current, event.timeStamp - pointer.pressedAt);
+        const longTouch = !pointer.mouse && event.timeStamp - pointer.pressedAt >= HOLD_MS;
+        place(current, pointer.right || longTouch, pointer.mouse);
       }
     }
     pointers.delete(event.pointerId);
@@ -260,6 +279,11 @@ function bindButtons() {
   const undo = () => edit({ type: 'undo' });
   element('undo').addEventListener('click', undo);
   element('overview').addEventListener('click', view.overview);
+  function lookAtHorizon() {
+    view.eyeLevel();
+    status.textContent = 'Eye level. Drag up to look over the rooftops.';
+  }
+  element('eye-level').addEventListener('click', lookAtHorizon);
   element('zoom-in').addEventListener('click', () => view.zoom(.76));
   element('zoom-out').addEventListener('click', () => view.zoom(1.32));
   element('map-button').addEventListener('click', event => {
@@ -289,6 +313,7 @@ function bindButtons() {
       const swatch = swatches[Number(key) - 1];
       if (swatch) swatch.click();
       else if (key === 'v') view.overview();
+      else if (key === 'e') lookAtHorizon();
       else if (key === 'escape' && !help.hidden) {
         showHelp(false);
         toggle.focus();
@@ -298,6 +323,10 @@ function bindButtons() {
 }
 
 function start() {
+  drawMapBase();
+  if (matchMedia('(pointer: fine)').matches) {
+    status.textContent = 'Left-click ground to build. Right-click a building to remove.';
+  }
   try {
     view = createView(canvas, frame);
   } catch (error) {

@@ -1,4 +1,4 @@
-import { BAY, COUNT, SIZE, DX, DZ, neighbors, opposite, xOf, zOf } from './world.mjs';
+import { BAY, COUNT, SIZE, DX, DZ, buildable, cell, neighbors, opposite, xOf, zOf } from './world.mjs';
 
 export const FLOOR = .12;
 export const WALL = .26;
@@ -12,10 +12,12 @@ const order = d => doorOrder.indexOf(d);
 const gableDirections = axis => axis === 0 ? [0, 2] : [1, 3];
 const sections = {
   hall: { eave: 3.35, peak: 4.53 },
+  loft: { eave: 6.07, peak: 7.25 },
   room: { eave: 3.06, peak: 4.10 },
   wing: { eave: 2.75, peak: 3.70 },
   gate: { eave: 2.88, peak: 3.91 },
 };
+const valid = id => id >= COUNT || !!buildable[id];
 
 function flood(seeds, adjacent, accepts, mark) {
   const queue = [...seeds];
@@ -51,6 +53,7 @@ function circulation(finish) {
     edges[b].push({ to: a, d: e });
   }
   for (let id = 0; id < COUNT; id++) {
+    if (!buildable[id]) continue;
     for (const d of doorOrder) {
       const n = neighbors[id][d];
       if (n < 0) {
@@ -79,6 +82,10 @@ function circulation(finish) {
         for (const dz of [-1, 0]) {
           if (x + dx < 0 || z + dz < 0 || x + dx >= SIZE || z + dz >= SIZE) continue;
           const around = (z + dz) * SIZE + x + dx;
+          if (!buildable[around]) {
+            rims.set(lane, -1);
+            continue;
+          }
           if (!active(around)) link(lane, around);
         }
       }
@@ -144,6 +151,90 @@ function mean(ids) {
   return [x, z];
 }
 
+function courtDrains(court) {
+  const cells = new Set(court.cells);
+  const axis = court.mouth;
+  const [x, z] = mean(court.cells);
+  const frontage = id => xOf(id) * DX[axis] + zOf(id) * DZ[axis];
+  const ends = court.cells.filter(id => !cells.has(neighbors[id][axis]));
+  const out = [...ends].sort((a, b) => frontage(b) - frontage(a)
+    || distances(a, x, z) - distances(b, x, z) || a - b)[0];
+  const sections = new Map([[out, { direction: axis, links: 1 << axis, level: 0 }]]);
+  const queue = [out];
+  for (let i = 0; i < queue.length; i++) {
+    const id = queue[i];
+    const current = sections.get(id);
+    for (const d of sides) {
+      const n = neighbors[id][d];
+      if (!cells.has(n) || sections.has(n)) continue;
+      current.links |= 1 << d;
+      sections.set(n, { direction: opposite(d), links: 1 << opposite(d), level: current.level + 1 });
+      queue.push(n);
+    }
+  }
+  const fall = Math.min(.012, .036 / Math.max(1, sections.get(queue.at(-1)).level));
+  for (const info of sections.values()) info.level *= fall;
+  for (const [id, info] of sections) {
+    info.falls = sides.map(d => (info.links & (1 << d))
+      ? ((sections.get(neighbors[id][d])?.level ?? -fall) - info.level) / 2 : 0);
+  }
+  return { out, sections };
+}
+
+// Walkable public frontages can combine as short lanes. Courtyards keep
+// their own paving and a building never claims open ground outside its entry.
+function settlementRoads(plots, rooms, courts, outdoor) {
+  const entries = new Map();
+  const roads = new Uint8Array(COUNT);
+  const squares = new Set();
+  function enter(id, d, compound) {
+    const n = neighbors[id][d];
+    if (n < 0 || !outdoor[n] || plots[n]?.kind === 'room' || plots[n]?.kind === 'court') return;
+    entries.set(n, compound);
+    squares.add(n);
+    roads[n] |= 1 << opposite(d);
+  }
+  for (const { id } of rooms) {
+    const room = plots[id];
+    for (const d of sides) {
+      if (room.walls[d].portal === 'main') enter(id, d, room.compound);
+    }
+  }
+  for (const court of courts) {
+    if (court.kind !== 'open') continue;
+    for (const id of court.cells) {
+      for (const { side, opening } of plots[id].screen) {
+        if (opening) enter(id, side, court.compounds[0]);
+      }
+    }
+  }
+  for (const [start, owner] of entries) {
+    const path = new Map([[start, { from: -1, depth: 0 }]]);
+    const queue = [start];
+    for (let i = 0; i < queue.length; i++) {
+      const id = queue[i];
+      const step = path.get(id);
+      if (id !== start && entries.has(id) && entries.get(id) !== owner) {
+        for (let here = id; here !== start;) {
+          const back = path.get(here).from;
+          const d = neighbors[here].indexOf(back);
+          roads[here] |= 1 << d;
+          roads[back] |= 1 << opposite(d);
+          here = back;
+        }
+        break;
+      }
+      if (step.depth >= 6) continue;
+      for (const n of neighbors[id]) {
+        if (n < 0 || !outdoor[n] || path.has(n) || plots[n]?.kind === 'room' || plots[n]?.kind === 'court') continue;
+        path.set(n, { from: id, depth: step.depth + 1 });
+        queue.push(n);
+      }
+    }
+  }
+  return { roads, squares };
+}
+
 export function derive(world) {
   const rooms = world.snapshot();
   const finish = new Int8Array(COUNT).fill(-1);
@@ -187,7 +278,8 @@ export function derive(world) {
       }
     }
     const groups = [...new Set(boundary.map(edge => compoundOf[edge.id]))];
-    const court = { id, kind, cells: ids, compounds: groups, mouth, gateway: [], boundary };
+    const court = { id, kind, form: kind === 'open' ? 'ao' : 'hui', cells: ids, compounds: groups, mouth, gateway: [], boundary,
+      skywell: ids.length <= 2 };
     if (groups.length === 1) {
       courts.push(court);
       courtById.set(id, court);
@@ -200,7 +292,7 @@ export function derive(world) {
   const claimed = outdoor.slice();
   const unreachableGround = [];
   for (let id = 0; id < graph.edges.length; id++) {
-    if (built(id) || claimed[id]) continue;
+    if (!valid(id) || built(id) || claimed[id]) continue;
     unreachableGround.push(flood([id], accessNeighbors, n => !built(n) && !claimed[n], n => { claimed[n] = 1; }));
   }
   const sealed = unreachableGround.map(ground => {
@@ -222,6 +314,7 @@ export function derive(world) {
     court.mouth = edge.dir;
     court.fromCourt = front.id;
     court.linkHall = edge.id;
+    court.form = front.form = 'ri';
     chainedHalls.set(edge.id, edge.dir);
     open(edge.id, edge.dir, 'hall');
     open(edge.id, edge.face, 'hall');
@@ -264,7 +357,9 @@ export function derive(world) {
   }
 
   const hallOf = new Map(chainedHalls);
+  const splitHalls = new Map([...chainedHalls].map(([id, face]) => [id, { face, through: true }]));
   const wingOf = new Map();
+  const lowerHalls = new Set();
   const towardCourt = new Set();
   for (const court of courts) {
     const front = court.mouth, back = opposite(front);
@@ -277,12 +372,46 @@ export function derive(world) {
       hallOf.set(hall.id, hall.face);
       open(hall.id, hall.face, 'hall');
     }
+    if (court.kind === 'enclosed') {
+      const lower = court.boundary.filter(edge => edge.dir === front && passages[edge.id])
+        .sort((a, b) => transverse(a) - transverse(b) || a.id - b.id)[0];
+      if (lower) {
+        court.lowerHall = lower.id;
+        lowerHalls.add(lower.id * 4 + lower.face);
+      }
+    }
     for (const edge of court.boundary) {
       towardCourt.add(edge.id * 4 + edge.face);
-      if (passages[edge.id] || edge === hall || edge.dir % 2 === front % 2) continue;
+      if (passages[edge.id] || edge === hall || hallOf.has(edge.id)) continue;
+      if (edge.dir % 2 === front % 2) {
+        const courtTile = neighbors[edge.id][edge.face];
+        const canTurn = [-1, 1].some(offset => {
+          const tangent = (edge.face + offset + 4) % 4;
+          const corner = neighbors[courtTile][tangent];
+          return boundary.some(side => side.id === corner && side.face === opposite(tangent)
+            && side.dir % 2 !== front % 2 && !hallOf.has(corner));
+        });
+        if (!canTurn) continue;
+      }
       if (!wingOf.has(edge.id)) wingOf.set(edge.id, edge.face);
       open(edge.id, edge.face, 'wing');
     }
+  }
+  for (const court of courts) {
+    if (court.form !== 'ao' || court.hall === undefined) continue;
+    const partner = courts.find(other => other.id > court.id && other.form === 'ao'
+      && other.hall === court.hall && other.mouth === opposite(court.mouth));
+    if (!partner) continue;
+    court.form = partner.form = 'h';
+    court.linkHall = partner.linkHall = court.hall;
+    splitHalls.set(court.hall, { face: court.mouth, through: false });
+  }
+  const upper = new Map();
+  for (const court of courts) {
+    const supportsUpperHall = court.cells.length >= 2 || court.form === 'ri' && court.fromCourt !== undefined;
+    if (court.kind !== 'enclosed' || !supportsUpperHall || court.hall === undefined
+      || passages[court.hall] || splitHalls.has(court.hall) || graph.seams[court.hall].some(Boolean)) continue;
+    upper.set(court.hall, { deck: 2.72, face: court.mouth });
   }
 
   // Prefer one public threshold and inward-facing openings per house. Reach
@@ -342,7 +471,7 @@ export function derive(world) {
     const axis = entry !== undefined ? axisOf(entry) : Number(Number(joins[1]) + Number(joins[3])
       >= Number(joins[0]) + Number(joins[2]));
     const insets = graph.seams[id].map(separated => separated ? SETBACK : 0);
-    roomPlans[id] = { ...room, role, axis, insets, joins, section: sections[role], face: entry };
+    roomPlans[id] = { ...room, role, axis, insets, joins, section: sections[upper.has(id) ? 'loft' : role], face: entry };
   }
 
   // The flanking bedrooms can share the raised main hall roof. Roof runs stop
@@ -352,7 +481,7 @@ export function derive(world) {
     if (plan.role !== 'room') continue;
     for (const d of doorOrder) {
       const next = roomPlans[neighbors[id][d]];
-      if (!plan.joins[d] || next.role !== 'hall' || d % 2 !== next.axis) continue;
+      if (!plan.joins[d] || next.role !== 'hall' || d % 2 !== next.axis || upper.has(next.id)) continue;
       plan.axis = next.axis;
       plan.section = next.section;
       break;
@@ -377,18 +506,28 @@ export function derive(world) {
       const neighbor = neighbors[id][d];
       const prev = (d + 3) % 4, next = (d + 1) % 4;
       const across = roomPlans[neighbor]?.insets;
+      const passage = openings.get(wallKey(id, d));
+      const court = towardCourt.has(id * 4 + d);
+      const separated = graph.seams[id][d];
+      const outside = !joins[d] && !separated && !court;
+      const portal = passage === 'passage' || passage === 'door'
+        ? joins[d] ? undefined : separated ? 'service' : court ? 'middle' : 'main'
+        : undefined;
+      const window = passage || joins[d] || separated || passages[id] || d % 2 === axis
+        ? undefined : court ? 'lattice' : outside && d !== face ? (role === 'hall' ? 'stone' : 'high') : undefined;
       return {
         neighbor,
         shared: joins[d],
-        separated: graph.seams[id][d],
+        separated,
         owner: !joins[d] || id < neighbor,
         sharedSpan: joins[d] ? [
           -BAY / 2 + Math.max(insets[prev], across[prev]),
           BAY / 2 - Math.max(insets[next], across[next]),
         ] : undefined,
-        opening: openings.get(wallKey(id, d)),
-        court: towardCourt.has(id * 4 + d),
-        lane: graph.seams[id][d],
+        lowTop: joins[d] ? Math.min(section.eave, roomPlans[neighbor].section.eave) : undefined,
+        top: joins[d] ? Math.max(section.eave, roomPlans[neighbor].section.eave) : undefined,
+        opening: passage, court, lane: separated, portal, window,
+        lowerHall: lowerHalls.has(id * 4 + d),
       };
     });
     const ridge = sides.map(d => d % 2 === axis);
@@ -397,29 +536,85 @@ export function derive(world) {
       const next = roomPlans[neighbors[id][d]];
       return next.axis !== axis || peak > next.peak || peak === next.peak && walls[d].owner;
     });
+    const clearWidth = BAY - insets[1] - insets[3] - 2 * WALL;
+    const clearDepth = BAY - insets[0] - insets[2] - 2 * WALL;
+    const clearArea = clearWidth * clearDepth;
     plots[id] = {
       ...room, kind: 'room', role, axis, insets, face, walls,
-      roof: { eave: section.eave, peak, joined: roofJoined, ridge, gable: ridge.map((on, d) => on && !joins[d]), break: breaks },
+      clearSpace: { width: clearWidth, depth: clearDepth, area: clearArea, use: clearArea < 12 ? 'annex' : 'room' },
+      roof: { eave: section.eave, peak, joined: roofJoined, ridge, gable: ridge.map((on, d) => on && !joins[d]), break: breaks,
+        gableVariant: upper.has(id) ? 'tall' : role === 'gate' || role === 'wing' ? 'low' : 'standard',
+        gables: walls.map(wall => wall.court ? 'low' : undefined) },
       passages: passages[id], compound: compoundOf[id],
+      upper: upper.get(id), splitHall: splitHalls.get(id),
+      floorRaise: role === 'hall' && walls.some(wall => wall.court) ? .13 : 0,
     };
   }
+  for (const { id } of rooms) {
+    const plot = plots[id];
+    const endOffsets = [-1, 1];
+    plot.galleryJoins = sides.map(d => endOffsets.map(off => {
+      const tangent = (d + off + 4) % 4;
+      const neighbor = plots[neighbors[id][tangent]];
+      return plot.walls[d].opening === 'wing' && neighbor?.compound === plot.compound
+        && neighbor.walls[d].opening === 'wing' && neighbor.roof.eave === plot.roof.eave;
+    }));
+    plot.galleryCorners = sides.map(d => endOffsets.map(off => {
+      const tangent = (d + off + 4) % 4;
+      const idAcross = neighbors[id][d];
+      const other = idAcross < 0 ? null : plots[neighbors[idAcross][tangent]];
+      return plot.walls[d].opening === 'wing' && other?.compound === plot.compound
+        && other.walls[opposite(tangent)].opening === 'wing' && other.roof.eave === plot.roof.eave;
+    }));
+  }
+  const groundSections = new Map();
+  for (const court of courts) {
+    const { out, sections: drains } = courtDrains(court);
+    court.drain = out;
+    for (const id of court.cells) {
+      const screen = court.kind === 'open' && !built(neighbors[id][court.mouth]) &&
+        courtOf[neighbors[id][court.mouth]] !== court.id
+        ? [{ side: court.mouth, opening: id === out }] : [];
+      const cornerSeals = [];
+      if (court.kind === 'enclosed') {
+        for (const d of sides) {
+          const next = (d + 1) % 4;
+          if (!built(neighbors[id][d]) || !built(neighbors[id][next])) continue;
+          const diagonal = cell(xOf(id) + DX[d] + DX[next], zOf(id) + DZ[d] + DZ[next]);
+          if (built(diagonal) || courtOf[diagonal] === court.id) continue;
+          cornerSeals.push(d);
+        }
+      }
+      groundSections.set(id, { outlet: id === out, drain: drains.get(id), screen, cornerSeals });
+    }
+  }
   for (let id = 0; id < COUNT; id++) {
-    if (built(id)) continue;
+    if (!buildable[id] || built(id)) continue;
     const arms = neighbors[id].reduce((mask, n, d) => mask | (built(n) ? 1 << d : 0), 0);
     const court = courtById.get(courtOf[id]);
     if (court) {
       const galleryArms = neighbors[id].reduce((mask, n, d) =>
         mask | (plots[n]?.walls?.[opposite(d)].opening === 'wing' ? 1 << d : 0), 0);
-      plots[id] = { id, kind: 'court', enclosed: court.kind === 'enclosed', axis: court.mouth % 2, arms, galleryArms, outlet: id === court.id };
+      plots[id] = { id, kind: 'court', enclosed: court.kind === 'enclosed', axis: court.mouth % 2, arms, galleryArms,
+        palette: finish[court.compounds[0]], ...groundSections.get(id) };
     }
     else if (arms) plots[id] = { id, kind: 'lane', arms, corners: 0 };
+  }
+  const { roads, squares } = settlementRoads(plots, rooms, courts, outdoor);
+  for (let id = 0; id < COUNT; id++) {
+    if (!roads[id]) continue;
+    plots[id] = { ...plots[id], id, kind: 'lane', road: roads[id], forecourt: squares.has(id) };
   }
   return { rooms, plots, courts, compounds, outside: outdoor, circulation: graph };
 }
 
 export function reachablePlots(model) {
   const { edges, rims } = model.circulation;
-  const allowed = (id, d) => !model.plots[id]?.walls || !!model.plots[id].walls[d]?.opening;
+  const allowed = (id, d) => {
+    const plot = model.plots[id];
+    if (plot?.walls) return !!plot.walls[d]?.opening;
+    return !plot?.screen?.some(edge => edge.side === d && !edge.opening);
+  };
   const seeds = [...rims].filter(([id, d]) => allowed(id, d)).map(([id]) => id);
   const visited = new Set(seeds);
   for (let head = 0; head < seeds.length; head++) {
@@ -436,7 +631,7 @@ export function reachablePlots(model) {
 
 export function plotSignature(plot) {
   if (!plot) return '';
-  if (plot.kind === 'court') return `court/${plot.enclosed}/${plot.axis}/${plot.arms}/${plot.galleryArms}/${plot.outlet}`;
-  if (plot.kind === 'lane') return `lane/${plot.arms}`;
-  return JSON.stringify([plot.palette, plot.passages, plot.role, plot.face, plot.walls, plot.roof, plot.insets]);
+  if (plot.kind === 'court' || plot.kind === 'lane') return JSON.stringify(plot);
+  return JSON.stringify([plot.palette, plot.passages, plot.role, plot.face, plot.walls, plot.roof, plot.insets,
+    plot.galleryJoins, plot.galleryCorners, plot.upper, plot.splitHall, plot.floorRaise]);
 }

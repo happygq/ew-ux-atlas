@@ -8,7 +8,7 @@ if (!output) {
 
 const read = path => readFile(new URL(path, import.meta.url), 'utf8');
 const vendor = '../../g1-m2/r2-vertical-v03-visual/vendor/';
-const sourceNames = ['world', 'spatial', 'architecture', 'landscape', 'view', 'main'];
+const sourceNames = ['world', 'spatial', 'structures', 'architecture', 'landscape', 'view', 'main'];
 const vendorImport = vendor + 'three.module.min.js';
 const encode = source => 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
 const imports = { 'ew-play/three': encode(await read(vendorImport)) };

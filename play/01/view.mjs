@@ -1,18 +1,60 @@
 import * as T from '../../g1-m2/r2-vertical-v03-visual/vendor/three.module.min.js';
-import { atPoint, HALF, SIZE, center, xOf, zOf } from './world.mjs';
+import { atPoint, BAY, HALF, SIZE, center, neighbors, xOf, zOf } from './world.mjs';
 import { buildArchitecture, createArchitectureMaterials } from './architecture.mjs';
 import { makeLandscape } from './landscape.mjs';
 import { plotSignature } from './spatial.mjs';
 
 const SNAP = 5;
 const START = { x: -19, z: -24, pitch: .74, orbit: .61, span: 59 };
-const OVERVIEW = { x: 0, z: 0, pitch: 1.29, orbit: .08, span: 144 };
+const OVERVIEW = { x: 0, z: 0, pitch: 1.45, orbit: .08, span: HALF * 2.35 };
+const FOV = 42;
+const EYE_HEIGHT = 1.65;
+const PITCH_UP = -T.MathUtils.degToRad(70);
+const FIELD_RATIO = 2 * Math.tan(T.MathUtils.degToRad(FOV / 2));
+const SUN = new T.Vector3(-55, 85, -38);
 const clamp = T.MathUtils.clamp;
 const ease = value => 1 - (1 - value) ** 3;
 
 function free(group) {
   group.removeFromParent();
   for (const mesh of group.children) mesh.geometry.dispose();
+}
+
+function makeSky() {
+  const material = new T.ShaderMaterial({
+    uniforms: {
+      horizon: { value: new T.Color('#e6e9d5') },
+      zenith: { value: new T.Color('#83aabe') },
+      sunlight: { value: new T.Color('#f9e6ba') },
+      sunDirection: { value: SUN.clone().normalize() },
+    },
+    vertexShader: `
+      varying vec3 direction;
+      void main() {
+        direction = position;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }`,
+    fragmentShader: `
+      varying vec3 direction;
+      uniform vec3 horizon;
+      uniform vec3 zenith;
+      uniform vec3 sunlight;
+      uniform vec3 sunDirection;
+      void main() {
+        vec3 ray = normalize(direction);
+        float altitude = smoothstep(-0.08, 0.96, ray.y);
+        float light = pow(max(dot(ray, sunDirection), 0.0), 5.0);
+        gl_FragColor = vec4(mix(mix(horizon, zenith, altitude), sunlight, .38 * light), 1.0);
+        #include <colorspace_fragment>
+      }`,
+    side: T.BackSide,
+    depthTest: false,
+    depthWrite: false,
+  });
+  const sky = new T.Mesh(new T.SphereGeometry(550, 24, 16), material);
+  sky.frustumCulled = false;
+  sky.renderOrder = -1000;
+  return sky;
 }
 
 export function createView(canvas, onFrame) {
@@ -22,24 +64,27 @@ export function createView(canvas, onFrame) {
   renderer.toneMapping = T.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.13;
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = T.PCFSoftShadowMap;
+  renderer.shadowMap.type = T.PCFShadowMap;
   renderer.shadowMap.autoUpdate = false;
 
   const scene = new T.Scene();
-  scene.background = new T.Color('#dce3ce');
-  scene.fog = new T.Fog('#dce3ce', 115, 440);
-  const camera = new T.OrthographicCamera(-1, 1, 1, -1, .1, 620);
+  scene.background = new T.Color('#e6e9d5');
+  scene.fog = new T.Fog('#e6e9d5', 115, 440);
+  const sky = makeSky();
+  scene.add(sky);
+  const camera = new T.PerspectiveCamera(FOV, 1, .08, 1400);
   const target = { ...START };
   const current = { ...START };
-  const sun = new T.DirectionalLight('#ffedd1', 2.46);
+  const sun = new T.DirectionalLight('#ffedd1', 2.23);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.radius = 2.4;
   sun.shadow.normalBias = .026;
   sun.shadow.bias = -.00013;
   sun.shadow.camera.near = 3;
   sun.shadow.camera.far = 240;
-  scene.add(sun, sun.target, new T.HemisphereLight('#e1ecf2', '#82755c', 2.03));
-  const skyFill = new T.DirectionalLight('#c3d3da', .36);
+  scene.add(sun, sun.target, new T.HemisphereLight('#e1ecf2', '#82755c', 2.15));
+  const skyFill = new T.DirectionalLight('#c3d3da', .46);
   skyFill.position.set(24, 12, -32);
   scene.add(skyFill);
 
@@ -62,7 +107,7 @@ export function createView(canvas, onFrame) {
       polygonOffset: true, polygonOffsetFactor: -1 }));
   const cursor = new T.Group();
   cursor.add(highlight, line);
-  cursor.scale.setScalar(1.955);
+  cursor.scale.setScalar(BAY / 2 - .045);
   cursor.visible = false;
   line.position.y = .015;
   scene.add(cursor);
@@ -74,6 +119,7 @@ export function createView(canvas, onFrame) {
   let previous = [];
   let latest;
   let width = 1, height = 1, aspect = 1;
+  let distance = 1;
   let draw = 0;
   let needsShadows = true;
   let shadowX = Infinity, shadowZ = Infinity, shadowSpan = Infinity;
@@ -94,8 +140,10 @@ export function createView(canvas, onFrame) {
   }
 
   function sync(model, change) {
+    const oldModel = latest;
     latest = model;
     const edited = new Set();
+    const surroundings = neighbors[change?.id] ?? [];
     // If another operation changes an active room, commit its current geometry immediately.
     for (const [id, effect] of active) {
       if (plotSignature(model.plots[id]) === previous[id]) continue;
@@ -112,7 +160,13 @@ export function createView(canvas, onFrame) {
     }
     for (let id = 0; id < model.plots.length; id++) {
       const signature = plotSignature(model.plots[id]);
-      if (signature !== (previous[id] ?? '')) edited.add(chunkId(id));
+      if (signature !== (previous[id] ?? '')) {
+        edited.add(chunkId(id));
+        if (change?.type !== 'recolor' && surroundings.includes(id)
+          && oldModel?.plots[id]?.kind === 'room' && model.plots[id]?.kind === 'room') {
+          pulse(id, 'adapt');
+        }
+      }
       previous[id] = signature;
     }
     for (const id of edited) rebuild(id);
@@ -123,12 +177,14 @@ export function createView(canvas, onFrame) {
 
   function pulse(id, type) {
     const [x, z] = center(id);
-    const mesh = new T.Mesh(new T.RingGeometry(.93, 1, 4, 1, Math.PI / 4).rotateX(-Math.PI / 2),
-      new T.MeshBasicMaterial({ color: type === 'remove' ? '#e8a68a' : '#fae8b3', transparent: true,
-        opacity: .78, depthWrite: false, side: T.DoubleSide }));
+    const adapting = type === 'adapt';
+    const opacity = adapting ? .42 : .75;
+    const mesh = new T.Mesh(new T.RingGeometry(adapting ? .965 : .93, 1, 4, 1, Math.PI / 4).rotateX(-Math.PI / 2),
+      new T.MeshBasicMaterial({ color: adapting ? '#c7e2d4' : type === 'remove' ? '#e8a68a' : '#fae8b3',
+        transparent: true, opacity, depthWrite: false, side: T.DoubleSide }));
     mesh.position.set(x, .1, z);
     scene.add(mesh);
-    effects.push({ mesh, start: performance.now() });
+    effects.push({ mesh, start: performance.now(), adapting, opacity });
   }
 
   function resize() {
@@ -140,20 +196,27 @@ export function createView(canvas, onFrame) {
   }
 
   function cameraPose() {
-    const range = 124;
-    const reach = Math.cos(current.pitch) * range;
-    camera.position.set(current.x + Math.sin(current.orbit) * reach, Math.sin(current.pitch) * range,
-      current.z + Math.cos(current.orbit) * reach);
-    camera.lookAt(current.x, 0, current.z);
-    camera.matrixWorldNeedsUpdate = true;
     const span = current.span / Math.min(1, aspect * 1.38);
-    camera.left = -span * aspect / 2;
-    camera.right = span * aspect / 2;
-    camera.top = span / 2;
-    camera.bottom = -span / 2;
+    const aboveGround = Math.max(0, current.pitch);
+    const planBlend = T.MathUtils.smoothstep(aboveGround, 0, .38);
+    // Keep eye position steady while looking from the horizon towards the sky.
+    const eyeRange = clamp(current.span * .66, 4.8, 46);
+    distance = T.MathUtils.lerp(eyeRange, span / FIELD_RATIO, planBlend);
+    const reach = Math.cos(aboveGround) * distance;
+    const sin = Math.sin(current.orbit), cos = Math.cos(current.orbit);
+    const eyeY = Math.max(EYE_HEIGHT, Math.sin(aboveGround) * distance);
+    const eyeX = current.x + sin * reach, eyeZ = current.z + cos * reach;
+    camera.position.set(eyeX, eyeY, eyeZ);
+    camera.lookAt(eyeX - sin * Math.cos(current.pitch), eyeY - Math.sin(current.pitch),
+      eyeZ - cos * Math.cos(current.pitch));
+    sky.position.copy(camera.position);
+    camera.aspect = aspect;
     camera.updateProjectionMatrix();
     camera.updateMatrixWorld();
     faceCamera(current.pitch, current.orbit);
+    // At overview distance the entire settlement remains clear.
+    scene.fog.near = Math.max(115, distance + HALF);
+    scene.fog.far = Math.max(440, distance + 365);
     if (Math.abs(shadowX - current.x) > 5 || Math.abs(shadowZ - current.z) > 5
       || Math.abs(shadowSpan - span) > 8) {
       shadowX = current.x;
@@ -163,7 +226,7 @@ export function createView(canvas, onFrame) {
       Object.assign(sun.shadow.camera, { left: -reach, right: reach, top: reach, bottom: -reach });
       sun.shadow.camera.updateProjectionMatrix();
       sun.target.position.set(current.x, 0, current.z);
-      sun.position.set(current.x - 58, 101, current.z - 39);
+      sun.position.copy(sun.target.position).add(SUN);
       needsShadows = true;
     }
   }
@@ -191,10 +254,11 @@ export function createView(canvas, onFrame) {
     }
     for (const id of ended) rebuild(id);
     for (let i = effects.length - 1; i >= 0; i--) {
-      const { mesh, start } = effects[i];
-      const phase = Math.min(1, (now - start) / 430);
-      mesh.scale.setScalar(2.82 + ease(phase) * 1.4);
-      mesh.material.opacity = .75 * (1 - phase);
+      const { mesh, start, adapting, opacity } = effects[i];
+      const phase = Math.min(1, (now - start) / (adapting ? 475 : 430));
+      const plotScale = adapting ? 1.025 + .12 * ease(phase) : 1 + .48 * ease(phase);
+      mesh.scale.setScalar(plotScale * BAY / Math.SQRT2);
+      mesh.material.opacity = opacity * (1 - phase);
       if (phase < 1) continue;
       mesh.removeFromParent();
       mesh.geometry.dispose();
@@ -248,13 +312,13 @@ export function createView(canvas, onFrame) {
 
   function orbit(dx, dy) {
     target.orbit -= dx * .008;
-    target.pitch = clamp(target.pitch + dy * .007, .27, 1.52);
+    target.pitch = clamp(target.pitch + dy * .007, PITCH_UP, 1.55);
     requestDraw();
   }
 
   function pan(dx, dy) {
-    const meters = (current.span / Math.min(1, aspect * 1.38)) / height;
-    const side = -dx * meters, forward = -dy * meters / Math.sin(current.pitch);
+    const meters = FIELD_RATIO * distance / height;
+    const side = -dx * meters, forward = -dy * meters / Math.max(.42, Math.sin(current.pitch));
     const a = current.orbit;
     focus(target.x + Math.cos(a) * side + Math.sin(a) * forward,
       target.z - Math.sin(a) * side + Math.cos(a) * forward);
@@ -262,7 +326,7 @@ export function createView(canvas, onFrame) {
 
   function zoom(amount, x, y) {
     const from = target.span;
-    target.span = clamp(from * amount, 8, 176);
+    target.span = clamp(from * amount, 8, OVERVIEW.span * 1.25);
     if (x !== undefined && y !== undefined && from !== target.span) {
       const box = canvas.getBoundingClientRect();
       const fraction = 1 - target.span / from;
@@ -279,8 +343,14 @@ export function createView(canvas, onFrame) {
   }
 
   function overview() {
-    const close = target.span <= 105;
+    const close = target.span <= HALF * 1.8 || target.pitch < 1;
     Object.assign(target, close ? OVERVIEW : START);
+    requestDraw();
+  }
+
+  function eyeLevel() {
+    target.pitch = 0;
+    target.span = Math.min(target.span, 35);
     requestDraw();
   }
 
@@ -292,6 +362,12 @@ export function createView(canvas, onFrame) {
 
   new ResizeObserver(resize).observe(canvas);
   resize();
-  return { sync, orbit, pan, zoom, focus, overview, locate, mark, project, requestDraw,
-    camera: () => ({ ...current }), stats: () => ({ ...renderer.info.render, chunks: chunks.size }) };
+  return { sync, orbit, pan, zoom, focus, overview, eyeLevel, locate, mark, project, requestDraw,
+    camera: () => ({
+      ...current, eyeX: camera.position.x, eyeY: camera.position.y, eyeZ: camera.position.z,
+      perspective: camera.isPerspectiveCamera,
+    }),
+    stats: () => ({
+      ...renderer.info.render, chunks: chunks.size, neighboringPulses: effects.filter(effect => effect.adapting).length,
+    }) };
 }

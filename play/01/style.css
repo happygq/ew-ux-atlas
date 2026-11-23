@@ -121,6 +121,9 @@ h1 {
   top: max(81px, calc(env(safe-area-inset-top) + 56px));
   right: max(26px, env(safe-area-inset-right));
   width: min(330px, calc(100% - 32px));
+  max-height: calc(100dvh - 100px);
+  overflow: auto;
+  overscroll-behavior: contain;
   z-index: 2;
   border-radius: 13px;
   padding: 16px 19px;

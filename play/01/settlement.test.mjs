@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from '../../g1-m2/r2-vertical-v03-visual/vendor/three.module.min.js';
-import { AREA, BAY, COUNT, HALF, SIZE, atPoint, cell, center, createWorld, neighbors, opposite } from './world.mjs';
+import { AREA, BAY, COUNT, DX, DZ, HALF, SIZE, atPoint, bankDistance, buildable, cell, center, createWorld, neighbors, opposite } from './world.mjs';
 import { PASSAGE, ROOM_AREA, SETBACK, derive, plotSignature, reachablePlots } from './spatial.mjs';
-import { buildArchitecture, noise, roofProfile } from './architecture.mjs';
+import { buildArchitecture, gableProfile, noise, roofProfile } from './architecture.mjs';
 import { apply, compound, gate, u } from './test-fixtures.mjs';
 
 function add(world, points, palette = 0) {
@@ -43,16 +43,26 @@ function consistent(model) {
   }
 }
 
-test('576 five-metre plots cover 14,400 square metres and can be used shore to shore', () => {
-  assert.equal(AREA, 14400);
-  const valid = new Set(Array.from({ length: COUNT }, (_, id) => atPoint(...center(id))));
-  assert.equal(valid.size * BAY ** 2, AREA);
-  assert.ok(!valid.has(-1));
-  assert.equal(atPoint(-HALF, -HALF), 0);
+test('975 connected five-metre plots cover 24,375 square metres within the irregular bank', () => {
+  assert.equal(AREA, 24375);
+  const valid = buildable.flatMap((allowed, id) => allowed ? [id] : []);
+  assert.equal(valid.length * BAY ** 2, AREA);
+  for (const id of valid) {
+    const [x, z] = center(id);
+    assert.equal(atPoint(x, z), id);
+    for (const a of [-BAY / 2, BAY / 2]) {
+      for (const b of [-BAY / 2, BAY / 2]) assert.ok(bankDistance(x + a, z + b) <= 0);
+    }
+  }
+  const visit = new Set([valid[0]]);
+  for (const id of visit) for (const n of neighbors[id]) if (n >= 0) visit.add(n);
+  assert.equal(visit.size, valid.length);
+  assert.equal(atPoint(-HALF, -HALF), -1);
   assert.equal(atPoint(HALF, 0), -1);
   assert.ok(ROOM_AREA >= 12 && ROOM_AREA <= 30);
   const world = createWorld();
-  const all = add(world, [[0, 0], [SIZE - 1, SIZE - 1], [0, SIZE - 1], [SIZE - 1, 0]]);
+  assert.equal(world.edit({ type: 'add', x: 0, z: 0 }).ok, false);
+  const all = add(world, [[3, 3], [27, 25], [6, 30], [30, 8]]);
   assert.equal(all.compounds.length, 4);
   consistent(all);
 });
@@ -87,6 +97,7 @@ test('ordinary Add forms inward-facing halls and galleries, then an axial gate',
   const opened = add(world, u);
   assert.equal(opened.courts.length, 1);
   assert.equal(opened.courts[0].kind, 'open');
+  assert.equal(opened.courts[0].form, 'ao');
   assert.ok(opened.courts[0].cells.includes(cell(10, 10)));
   assert.equal(opened.plots[cell(10, 9)].role, 'hall');
   assert.equal(opened.plots[cell(10, 9)].walls[2].opening, 'hall');
@@ -95,6 +106,8 @@ test('ordinary Add forms inward-facing halls and galleries, then an axial gate',
   consistent(opened);
   const closed = add(world, [gate]);
   assert.equal(closed.courts[0].kind, 'enclosed');
+  assert.equal(closed.courts[0].form, 'hui');
+  assert.equal(closed.courts[0].lowerHall, cell(...gate));
   assert.equal(closed.courts[0].gateway.length, 1);
   assert.equal(closed.plots[cell(10, 10)].kind, 'court');
   consistent(closed);
@@ -135,6 +148,7 @@ test('two aligned skywells share an interior hall and enter from the front court
   }
   const model = add(world, rooms);
   assert.equal(model.courts.length, 2);
+  assert.ok(model.courts.every(court => court.form === 'ri'));
   const rear = model.courts.find(court => court.id === cell(17, 13));
   const front = model.courts.find(court => court.id === cell(17, 15));
   const hall = model.plots[cell(17, 14)];
@@ -145,6 +159,8 @@ test('two aligned skywells share an interior hall and enter from the front court
   assert.equal(hall.walls[0].opening, 'hall');
   assert.equal(hall.walls[2].opening, 'hall');
   assert.equal(hall.roof.joined[0], false);
+  assert.equal(hall.splitHall.through, true);
+  assert.equal(model.plots[rear.hall].upper.deck, 2.72, 'The rear hall can rise above the narrow two-entry sequence');
   consistent(model);
 });
 
@@ -216,7 +232,7 @@ test('dense and irregular construction keeps rooms and enclosed outdoor space ac
   }
   const border = createWorld();
   const allButHole = Array.from({ length: COUNT }, (_, id) => [id % SIZE, Math.floor(id / SIZE)])
-    .filter(([x, z]) => x !== 15 || z !== 15);
+    .filter(([x, z]) => buildable[z * SIZE + x] && (x !== 15 || z !== 15));
   consistent(add(border, allButHole));
 });
 
@@ -312,4 +328,134 @@ test('the wings roof their galleries while leaving the center of the skywell ope
   assert.equal(down(0).length, 0);
   assert.ok(down(-BAY / 2 + .6).length > 0);
   assert.ok(down(BAY / 2 - .6).length > 0);
+});
+
+function meshRay(plots) {
+  const material = new T.MeshBasicMaterial({ side: T.DoubleSide });
+  const mesh = buildArchitecture(plots, { solid: material, roof: material });
+  mesh.updateMatrixWorld(true);
+  return (origin, direction, length) => new T.Raycaster(
+    new T.Vector3(...origin), new T.Vector3(...direction), 0, length,
+  ).intersectObject(mesh, true);
+}
+
+test('open courts have a physical fourth screen and back-to-back halls retain two separate entries', () => {
+  const model = add(createWorld(), u);
+  const frontage = model.plots[cell(...gate)];
+  assert.deepEqual(frontage.screen, [{ side: 2, opening: true }]);
+  assert.ok(model.plots[cell(10, 12)].forecourt, 'An open-court screen gate also leads to a public frontage');
+  const cast = meshRay([frontage]);
+  const [x, z] = center(frontage.id);
+  assert.equal(cast([x, 1.3, z + 2.7], [0, 0, -1], .9).length, 0);
+  assert.ok(cast([x + 1.3, 1.3, z + 2.7], [0, 0, -1], .9).length);
+  const h = add(createWorld(), [[9, 9], [11, 9], [9, 10], [10, 10], [11, 10], [9, 11], [11, 11]]);
+  assert.deepEqual(h.courts.map(court => court.form), ['h', 'h']);
+  const hall = h.plots[cell(10, 10)];
+  assert.equal(hall.splitHall.through, false);
+  const [hx, hz] = center(hall.id);
+  const inside = meshRay([hall]);
+  assert.ok(inside([hx, 1.35, hz - 1], [0, 0, 1], 2).length, 'Timber backs divide the two hall fronts');
+  assert.equal(inside([hx, 1.35, hz - 2.8], [0, 0, 1], .85).length, 0);
+  assert.equal(inside([hx, 1.35, hz + 2.8], [0, 0, -1], .85).length, 0);
+  consistent(h);
+});
+
+test('missing diagonal court corners close with masonry but leave the gateway usable', () => {
+  const model = add(createWorld(), [...u.slice(1), gate]);
+  const court = model.plots[cell(10, 10)];
+  assert.equal(court.enclosed, true);
+  assert.ok(court.cornerSeals.includes(3));
+  const [x, z] = center(court.id);
+  const cast = meshRay([court]);
+  assert.ok(cast([x - 2.7, 1.3, z - 2.7], [Math.SQRT1_2, 0, Math.SQRT1_2], 1).length);
+  consistent(model);
+});
+
+test('wide courts connect gallery canopies, drain downhill and have a stair-served upper hall', () => {
+  const model = add(createWorld(), compound);
+  const court = model.courts[0];
+  const wings = [model.plots[cell(18, 19)], model.plots[cell(18, 20)]];
+  const cast = meshRay(wings);
+  const [wx, wz] = center(wings[0].id);
+  for (const offset of [2.42, 2.5, 2.58]) {
+    assert.ok(cast([wx + 3.20, 5, wz + offset], [0, -1, 0], 3).length, 'The cover spans the wing seam');
+  }
+  assert.equal(cast([wx + 4.6, 5, wz + 2.5], [0, -1, 0], 3).length, 0);
+  const north = model.plots[cell(19, 18)];
+  assert.ok(north.galleryCorners[2].some(Boolean) && wings[0].galleryCorners[1].some(Boolean));
+  const turn = meshRay([north, wings[0]]);
+  for (const offset of [.26, .35, .60]) {
+    assert.ok(turn([wx + 2.85, 5, wz - 2.5 + offset], [0, -1, 0], 3).length, 'Miter shelters the corner');
+  }
+  assert.equal(turn([wx + 2.85, 1.6, wz - 2.1], [1, 0, 0], .70).length, 0);
+  assert.equal(model.plots[court.drain].outlet, true);
+  for (const id of court.cells) {
+    const info = model.plots[id].drain;
+    assert.ok(info.falls[info.direction] < 0);
+    if (id !== court.drain) assert.ok(model.plots[neighbors[id][info.direction]].drain.level < info.level);
+  }
+  const outlet = model.plots[court.drain];
+  const [ox, oz] = center(outlet.id);
+  const outletMesh = meshRay([outlet]);
+  const heightAt = dx => outletMesh([ox + dx, .12, oz + .67], [0, -1, 0], .18)[0]?.point.y;
+  assert.ok(heightAt(.93) > heightAt(.21), 'The courtyard paving falls towards the open groove');
+  const hall = model.plots[court.hall];
+  assert.equal(hall.upper.deck, 2.72);
+  const face = hall.upper.face;
+  const [x, z] = center(hall.id);
+  const at = (u, y, v) => [x - DZ[face] * u + DX[face] * v, y, z + DX[face] * u + DZ[face] * v];
+  const loft = meshRay([hall]);
+  assert.ok(loft(at(-1, 2.9, 0), [0, -1, 0], .30).length, 'Upper floor beside the stair opening');
+  assert.equal(loft(at(1.38, 2.9, 0), [0, -1, 0], .30).length, 0, 'Stair void is open');
+  const stair = loft(at(1.38, 2.54, 0), [0, -1, 0], 1.6);
+  assert.ok(stair[0]?.point.y > 1.3 && stair[0]?.point.y < 1.8, 'There are physical treads under the opening');
+  assert.equal(gableProfile(hall, 1).length, 7);
+  assert.equal(gableProfile(wings[0], 0).length, 3);
+  consistent(model);
+});
+
+test('a lower roof meets solid high-side masonry and no wall openings depend on global coordinates', () => {
+  const block = [[9, 9], [10, 9], [11, 9], [9, 10], [10, 10], [11, 10]];
+  const model = add(createWorld(), block);
+  const hall = model.plots[cell(10, 10)];
+  const low = model.plots[cell(10, 9)];
+  assert.notEqual(hall.roof.eave, low.roof.eave);
+  const [x, z] = center(low.id);
+  const cast = meshRay([low, hall]);
+  for (const [offset, direction] of [[2.14, 1], [2.86, -1]]) {
+    assert.ok(cast([x, 3.20, z + offset], [0, 0, direction], .64).length, 'Shared closure is solid from either side');
+  }
+  assert.equal(gableProfile(hall, 1).length, 5);
+  const first = [...u, gate];
+  const moved = first.map(([x, z]) => [x + 1, z + 1]);
+  const roles = (map, points) => points.map(([x, z]) => map.plots[cell(x, z)].walls
+    .map(wall => [wall.opening, wall.window, wall.portal]));
+  const windowPlan = roles(add(createWorld(), first), first);
+  assert.deepEqual(roles(add(createWorld(), moved), moved), windowPlan);
+  assert.ok(windowPlan.flat().every(([opening, window]) => !opening || !window));
+});
+
+test('independent homes link their forecourts and retain measurable compact annex space', () => {
+  const world = createWorld();
+  add(world, [[8, 8]]);
+  const village = add(world, [[11, 8]], 1);
+  assert.equal(village.compounds.length, 2);
+  assert.ok(village.plots[cell(8, 9)].forecourt);
+  assert.ok(village.plots[cell(11, 9)].forecourt);
+  for (const x of [9, 10]) assert.equal(village.plots[cell(x, 9)].road, 10);
+  const courts = createWorld();
+  add(courts, u);
+  const street = add(courts, u.map(([x, z]) => [x + 6, z]), 2);
+  assert.equal(street.compounds.length, 2);
+  assert.ok(street.plots[cell(10, 12)].forecourt && street.plots[cell(16, 12)].forecourt);
+  for (let x = 11; x <= 15; x++) assert.equal(street.plots[cell(x, 12)].road, 10);
+  const dense = createWorld();
+  add(dense, [[10, 10]]);
+  const plan = add(dense, [[10, 9], [9, 10], [11, 10], [10, 11]], 1);
+  assert.equal(plan.compounds.length, 5);
+  const { width, depth, area, use } = plan.plots[cell(10, 10)].clearSpace;
+  assert.ok(Math.abs(width - 2.96) < .001 && Math.abs(depth - 2.96) < .001);
+  assert.ok(Math.abs(area - 8.7616) < .001);
+  assert.equal(use, 'annex');
+  consistent(plan);
 });
