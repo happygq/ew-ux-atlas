@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { compound, gate, u } from './test-fixtures.mjs';
+import { SIZE, cell } from './world.mjs';
 
 const chromium = [process.env.EW_CHROME, 'C:/Program Files/Google/Chrome/Application/chrome.exe',
   'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', '/usr/bin/chromium', '/usr/bin/google-chrome']
@@ -101,14 +102,16 @@ try {
     await mouse('mouseReleased', to, button);
     await twoFrames();
   }
-  const button = async selector => click(await evaluate(`(() => {
+  const buttonPoint = selector => evaluate(`(() => {
     const b = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();
     return [b.x + b.width / 2, b.y + b.height / 2];
-  })()`));
+  })()`);
+  const button = async selector => click(await buttonPoint(selector));
   const project = ([x, z], y = 0) => evaluate(`game.project(${x}, ${z}, ${y})`);
   const size = () => evaluate('game.inspect().rooms.length');
   const courts = () => evaluate('game.inspect().model.courts.map(c => c.kind)');
   const pose = () => evaluate('game.inspect().camera');
+  const holdVisible = () => evaluate('!document.querySelector("#hold-meter").hidden');
   async function addByClick(coords) {
     const previous = await size();
     await click(await project(coords));
@@ -142,16 +145,26 @@ try {
   await addByClick(gate);
   assert.deepEqual(await courts(), ['enclosed']);
   assert.equal(await evaluate('game.inspect().model.courts[0].gateway.length'), 1);
-  await button('[data-tool="recolor"]');
-  await button('[aria-label="Clay palette"]');
-  await click(await project(u[0], 4.57));
-  assert.equal(await evaluate('game.inspect().rooms[0].palette'), 2);
-  await button('[data-tool="remove"]');
-  await click(await project(gate, 4.57));
+  const gatePoint = await project(gate, 4.57);
+  await click(gatePoint);
+  assert.equal(await size(), u.length + 1, 'A short click on a roof does not remove it');
+  await mouse('mousePressed', gatePoint, 'left', 1);
+  assert.equal(await holdVisible(), true, 'A held roof shows the removal ring');
+  await pause(650);
+  assert.equal(await size(), u.length + 1, 'A held roof is removed on release');
+  await mouse('mouseReleased', gatePoint, 'left');
+  await twoFrames();
   assert.deepEqual(await courts(), ['open']);
+  assert.equal(await holdVisible(), false);
   await button('#undo');
   assert.deepEqual(await courts(), ['enclosed']);
-  await button('[data-tool="add"]');
+  await button('[aria-label="Clay palette"]');
+  assert.equal(await evaluate('game.inspect().rooms[0].palette'), 0, 'Palette selection leaves existing bays unchanged');
+  await addByClick([12, 9]);
+  assert.equal(await evaluate('game.inspect().model.compounds.length'), 2, 'An adjacent bay in a new color forms its own household');
+  assert.equal(await evaluate(`game.inspect().rooms.find(room => room.id === ${cell(12, 9)}).palette`), 2);
+  await capture('03a-color-seam');
+  await button('#undo');
   await drag([785, 416], [742, 329]);
   await capture('03-four-sided');
   const beforePan = await pose();
@@ -163,12 +176,12 @@ try {
 
   const map = await evaluate(`(() => {
     const b = document.querySelector('#map').getBoundingClientRect();
-    return [b.x + b.width * (40 + 184 * 25.5 / 30) / 264, b.y + b.height * (16 + 184 * 24.5 / 30) / 216];
+    return [b.x + b.width * (40 + 184 * 20.5 / ${SIZE}) / 264, b.y + b.height * (16 + 184 * 20.5 / ${SIZE}) / 216];
   })()`);
   await click(map);
   await until('game.inspect().camera.x > 35 && game.inspect().camera.z > 32', 'Minimap focus');
   await addByClick(compound[0]);
-  await evaluate(`${JSON.stringify(compound.slice(1))}.forEach(([x, z], i) => game.edit({type:'add', x, z, palette: i < 4 ? 1 : 0}))`);
+  await evaluate(`${JSON.stringify(compound.slice(1))}.forEach(([x, z]) => game.edit({type:'add', x, z, palette: 2}))`);
   assert.deepEqual(await courts(), ['enclosed', 'enclosed']);
   assert.equal(await evaluate('game.inspect().model.compounds.length'), 2);
   await button('#overview');
@@ -177,35 +190,82 @@ try {
 
   await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
   await send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 });
-  await evaluate('game.focus(18, 18, 32)');
+  await evaluate('game.focus(15, 13, 32)');
   await until('Math.abs(game.inspect().camera.span - 32) < .3', 'Mobile focus');
   const touch = (type, positions) => send('Input.dispatchTouchEvent', {
     type, touchPoints: positions.map(([x, y], id) => ({ x, y, id })),
   });
-  await touch('touchStart', [await project([18, 18])]);
+  async function tap(at) {
+    await touch('touchStart', [at]);
+    await touch('touchEnd', []);
+    await twoFrames();
+  }
+  const settledBayCount = u.length + 1 + compound.length;
+  const newBay = [15, 13];
+  const touchPoint = await project(newBay);
+  await tap(touchPoint);
+  assert.equal(await size(), settledBayCount + 1, JSON.stringify({
+    touchPoint,
+    notice: await evaluate('document.querySelector("#notice").textContent'),
+    viewport: await evaluate('[innerWidth, innerHeight, devicePixelRatio]'),
+  }));
+  await pause(300);
+  const roof = () => project(newBay, 4.57);
+  await tap(await roof());
+  assert.equal(await size(), settledBayCount + 1, 'A short touch on a roof preserves the bay');
+  const [roofX, roofY] = await roof();
+  await touch('touchStart', [[roofX, roofY]]);
+  await pause(650);
+  assert.equal(await holdVisible(), true);
+  await touch('touchMove', [[roofX + 22, roofY + 19]]);
+  await twoFrames();
+  assert.equal(await holdVisible(), false, 'Dragging cancels a pending hold');
   await touch('touchEnd', []);
   await twoFrames();
-  assert.equal(await size(), u.length + 1 + compound.length + 1);
+  assert.equal(await size(), settledBayCount + 1);
+  await touch('touchStart', [await roof()]);
+  await pause(650);
+  await touch('touchEnd', []);
+  await twoFrames();
+  assert.equal(await size(), settledBayCount, 'Holding and releasing on a roof removes one bay');
+  await tap(await buttonPoint('#undo'));
+  assert.equal(await size(), settledBayCount + 1);
   const touchPose = await pose();
-  await touch('touchStart', [[140, 380], [245, 415]]);
-  await touch('touchMove', [[92, 373], [270, 413]]);
+  const [pinchX, pinchY] = await roof();
+  await touch('touchStart', [[pinchX, pinchY]]);
+  assert.equal(await holdVisible(), true);
+  await touch('touchStart', [[pinchX, pinchY], [pinchX + 100, pinchY + 32]]);
+  await twoFrames();
+  assert.equal(await holdVisible(), false, 'Adding a second finger cancels a pending hold');
+  await touch('touchMove', [[pinchX - 50, pinchY - 7], [pinchX + 125, pinchY + 30]]);
   await touch('touchEnd', []);
   await until(`game.inspect().camera.span < ${touchPose.span - 3}`, 'Pinch zoom');
   assert.ok(Math.abs((await pose()).x - touchPose.x) > .25, 'Two-finger pan changed the viewpoint');
-  assert.equal(await size(), u.length + 1 + compound.length + 1);
+  assert.equal(await size(), settledBayCount + 1);
   await capture('05-touch');
   assert.ok(await evaluate(`Array.from(document.querySelectorAll('.dock-controls button, .view-tools button, .masthead button')).every(button => {
     const bounds = button.getBoundingClientRect();
     return bounds.left >= 0 && bounds.right <= 383 && bounds.bottom <= 845;
   })`), 'The mobile construction and view controls fit in the viewport');
+  await evaluate(`(() => {
+    for (let z = 3; z <= 7; z++) {
+      for (let x = 5; x <= 7; x++) {
+        if (x !== 6 || z !== 4 && z !== 6) game.edit({type:'add', x, z, palette: 1});
+      }
+    }
+    game.focus(6, 5, 37);
+  })()`);
+  await until('Math.abs(game.inspect().camera.span - 37) < .3', 'Multi-entry focus');
+  assert.equal(await evaluate('game.inspect().model.courts.filter(c => c.fromCourt !== undefined).length'), 1);
+  await capture('06-two-entry-home');
   const denseCount = await evaluate(`(() => {
-    for (let z = 19; z < 27; z++) {
+    for (let z = 15; z < 23; z++) {
       for (let x = 3; x < 16; x++) {
         if (x % 5 === 2 && z % 3 === 1) continue;
         game.edit({type:'add', x, z, palette: x % 4});
       }
     }
-    game.focus(9, 22, 65);
+    game.focus(9, 19, 65);
     return game.inspect().rooms.length;
   })()`);
   assert.ok(denseCount >= 120);
@@ -222,12 +282,14 @@ try {
     await evaluate('import("ew-play/main").then(module => { window.game = module.game; })');
     await twoFrames();
     assert.equal(await size(), 0);
-    await click([720, 450]);
-    assert.equal(await size(), 1, 'Offline build works through an ordinary click');
+    assert.equal(await evaluate('document.querySelector("#error").hidden'), true);
+    await evaluate('game.focus(10, 10, 34)');
+    await until('Math.abs(game.inspect().camera.span - 34) < .3', 'Offline view');
+    await addByClick([10, 10]);
     console.log('PASS standalone file preview');
   }
   assert.deepEqual(errors, []);
-  console.log('PASS desktop startup, pointer-built U and enclosure, recolor, remove, undo, pan, minimap, overview, touch build and pinch');
+  console.log('PASS desktop startup, pointer-built U and enclosure, color-separated households, hold to remove, undo, pan, minimap, overview, touch build, drag cancellation and pinch');
 } finally {
   socket?.close();
   if (browser && browser.exitCode === null) {

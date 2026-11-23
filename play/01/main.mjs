@@ -7,18 +7,16 @@ const status = element('notice');
 const canvas = element('valley');
 const map = element('map');
 const mapContext = map.getContext('2d');
-const toolButtons = Array.from(document.querySelectorAll('[data-tool]'));
+const holdMeter = element('hold-meter');
+const HOLD_MS = 550;
+const DRAG_PIXELS = 7;
 const world = createWorld();
 let model = derive(world);
-let mode = 'add';
 let palette = 0;
 let hover = null;
+let holdTarget = null;
 let view;
-const tools = {
-  add: 'Click or tap an open plot to build.',
-  remove: 'Select a building to remove it.',
-  recolor: 'Choose a palette, then select a building.',
-};
+holdMeter.style.setProperty('--hold-time', `${HOLD_MS}ms`);
 const mapBounds = { left: 40, top: 16, width: 184, height: 184 };
 const swatches = PALETTES.map(({ name, chip }, i) => {
   const button = document.createElement('button');
@@ -31,8 +29,7 @@ const swatches = PALETTES.map(({ name, chip }, i) => {
   button.addEventListener('click', () => {
     palette = i;
     swatches.forEach((swatch, index) => swatch.setAttribute('aria-pressed', String(index === i)));
-    if (mode === 'remove') setTool('recolor');
-    status.textContent = mode === 'add' ? `${name} selected for new buildings.` : `${name} selected. Choose a building.`;
+    status.textContent = `${name} selected for new bays. Different colors stay separate.`;
   });
   element('palettes').append(button);
   return button;
@@ -92,23 +89,18 @@ function drawMap(camera) {
 
 function frame(camera) {
   drawMap(camera);
-  const target = hover && view.locate(...hover, mode);
-  const valid = target && target.id >= 0 && (mode === 'add' ? !target.occupied : target.occupied);
-  if (valid) canvas.dataset.target = target.occupied ? 'room' : 'ground';
+  const target = holdTarget ?? (hover && view.locate(...hover));
+  const selectable = target && target.id >= 0 && (target.building || !target.occupied);
+  if (selectable) canvas.dataset.target = target.building ? 'room' : 'ground';
   else delete canvas.dataset.target;
-  view.mark(target, mode);
-}
-
-function setTool(next) {
-  mode = next;
-  for (const button of toolButtons) button.setAttribute('aria-pressed', String(button.dataset.tool === mode));
-  status.textContent = tools[mode];
-  view?.requestDraw();
+  view.mark(selectable ? target : null, target?.building ? 'remove' : 'add');
 }
 
 function updateLedger() {
   element('rooms').textContent = world.size;
-  element('room-label').textContent = world.size === 1 ? 'building' : 'buildings';
+  element('room-label').textContent = world.size === 1 ? 'bay' : 'bays';
+  element('homes').textContent = model.compounds.length;
+  element('home-label').textContent = model.compounds.length === 1 ? 'household' : 'households';
   element('courts').textContent = model.courts.length;
   element('court-label').textContent = model.courts.length === 1 ? 'courtyard' : 'courtyards';
   element('undo').disabled = !world.canUndo;
@@ -127,28 +119,45 @@ function edit(command) {
   const enclosed = model.courts.find(court => court.kind === 'enclosed'
     && !previous.courts.some(old => old.kind === 'enclosed' && old.id === court.id));
   if (command.type === 'undo') status.textContent = 'Last change undone.';
-  else if (command.type === 'recolor') status.textContent = `Applied the ${PALETTES[command.palette ?? 0].name} palette.`;
-  else if (command.type === 'remove') status.textContent = 'Building removed. Its neighbors have adapted.';
-  else if (enclosed) status.textContent = 'Courtyard enclosed. A covered passage leads outside.';
-  else if (model.courts.length > previous.courts.length) status.textContent = 'Courtyard formed. Leave the fourth side open or close it.';
-  else if (model.plots[result.id].roof.joined.some(Boolean)) status.textContent = 'Building joined. Add wings to shape a courtyard.';
-  else status.textContent = 'Building raised. Add beside it to join the roofs.';
+  else if (command.type === 'remove') status.textContent = 'Bay removed. Its neighbors have adapted.';
+  else if (enclosed) status.textContent = 'Skywell enclosed. Follow the covered entry into the house.';
+  else if (model.courts.length > previous.courts.length) status.textContent = 'Courtyard formed. Continue around the open center.';
+  else if (model.plots[result.id].walls.some(wall => wall.shared)) status.textContent = 'Bay added to the same household.';
+  else status.textContent = 'Independent household started.';
   return result;
 }
 
-function place(x, y) {
-  const target = view.locate(x, y, mode);
-  if (target.id < 0 || (mode === 'add' && target.occupied)) {
-    status.textContent = target.id < 0 ? 'Choose a plot inside the valley.' : 'Choose an open plot beside the building.';
+function place(target, elapsed) {
+  if (target.id < 0) {
+    status.textContent = 'Choose a plot inside the valley.';
     return;
   }
-  edit({ type: mode, x: xOf(target.id), z: zOf(target.id), palette });
+  if (target.occupied && !target.building) {
+    status.textContent = 'Tap an open plot, or hold a roof to remove a bay.';
+    return;
+  }
+  if (target.building && elapsed < HOLD_MS) {
+    status.textContent = 'Hold the roof until the ring fills, then release to remove it.';
+    return;
+  }
+  edit({ type: target.building ? 'remove' : 'add', x: xOf(target.id), z: zOf(target.id), palette });
 }
 
 function bindSceneControls() {
   const pointers = new Map();
   let gesture = false;
   const point = event => [event.clientX, event.clientY];
+  const moved = ([x, y], [startX, startY]) => Math.hypot(x - startX, y - startY) > DRAG_PIXELS;
+  function clearHold() {
+    holdTarget = null;
+    holdMeter.hidden = true;
+  }
+  function showHold(target, [x, y]) {
+    holdTarget = target;
+    holdMeter.style.left = `${Math.max(20, Math.min(innerWidth - 20, x))}px`;
+    holdMeter.style.top = `${y < 64 ? y + 39 : y - 39}px`;
+    holdMeter.hidden = false;
+  }
   function metrics() {
     const [{ at: a }, { at: b }] = pointers.values();
     return { x: (a[0] + b[0]) / 2, y: (a[1] + b[1]) / 2, gap: Math.hypot(a[0] - b[0], a[1] - b[1]) };
@@ -160,10 +169,16 @@ function bindSceneControls() {
     const at = point(event);
     const pan = event.button !== 0 || event.shiftKey;
     gesture ||= pointers.size > 0 || pan;
-    pointers.set(event.pointerId, { at, start: at, pan });
+    const target = gesture ? null : view.locate(...at);
+    pointers.set(event.pointerId, { at, start: at, pan, target, pressedAt: event.timeStamp });
     canvas.setPointerCapture(event.pointerId);
     hover = gesture ? null : at;
-    if (gesture) canvas.classList.add('dragging');
+    if (gesture) {
+      clearHold();
+      canvas.classList.add('dragging');
+    } else if (target?.building) {
+      showHold(target, at);
+    }
     view.requestDraw();
   });
   canvas.addEventListener('pointermove', event => {
@@ -182,21 +197,32 @@ function bindSceneControls() {
       view.pan(after.x - before.x, after.y - before.y);
       if (after.gap > 5 && before.gap > 5) view.zoom(before.gap / after.gap, after.x, after.y);
     } else {
-      gesture ||= Math.hypot(at[0] - pointer.start[0], at[1] - pointer.start[1]) > 5;
+      gesture ||= moved(at, pointer.start);
       if (gesture) {
         if (pointer.pan || event.shiftKey) view.pan(at[0] - x, at[1] - y);
         else view.orbit(at[0] - x, at[1] - y);
       }
     }
-    if (gesture) canvas.classList.add('dragging');
+    if (gesture) {
+      clearHold();
+      canvas.classList.add('dragging');
+    }
     hover = gesture ? null : at;
     view.requestDraw();
   });
   function end(event) {
-    if (!pointers.has(event.pointerId)) return;
+    const pointer = pointers.get(event.pointerId);
+    if (!pointer) return;
     const at = point(event);
-    if (event.type === 'pointerup' && !gesture && pointers.size === 1) place(...at);
+    if (event.type === 'pointerup' && !gesture && pointers.size === 1 && !moved(at, pointer.start)) {
+      const current = view.locate(...at);
+      if (current.id === pointer.target.id && current.building === pointer.target.building
+        && current.occupied === pointer.target.occupied) {
+        place(current, event.timeStamp - pointer.pressedAt);
+      }
+    }
     pointers.delete(event.pointerId);
+    clearHold();
     if (pointers.size) return;
     canvas.classList.remove('dragging');
     hover = event.pointerType === 'mouse' && event.type === 'pointerup' ? at : null;
@@ -209,13 +235,28 @@ function bindSceneControls() {
   });
   canvas.addEventListener('wheel', event => {
     event.preventDefault();
+    if (pointers.size) {
+      gesture = true;
+      clearHold();
+    }
     const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 320 : 1;
     view.zoom(Math.exp(Math.max(-450, Math.min(450, event.deltaY * unit)) * .0015), ...point(event));
   }, { passive: false });
+  window.addEventListener('blur', () => {
+    gesture = true;
+    const captured = Array.from(pointers.keys());
+    pointers.clear();
+    for (const id of captured) {
+      if (canvas.hasPointerCapture(id)) canvas.releasePointerCapture(id);
+    }
+    canvas.classList.remove('dragging');
+    clearHold();
+    hover = null;
+    view.requestDraw();
+  });
 }
 
 function bindButtons() {
-  for (const button of toolButtons) button.addEventListener('click', () => setTool(button.dataset.tool));
   const undo = () => edit({ type: 'undo' });
   element('undo').addEventListener('click', undo);
   element('overview').addEventListener('click', view.overview);
@@ -245,8 +286,8 @@ function bindButtons() {
       event.preventDefault();
       undo();
     } else if (!event.ctrlKey && !event.metaKey && !event.altKey) {
-      const button = toolButtons[Number(key) - 1];
-      if (button) setTool(button.dataset.tool);
+      const swatch = swatches[Number(key) - 1];
+      if (swatch) swatch.click();
       else if (key === 'v') view.overview();
       else if (key === 'escape' && !help.hidden) {
         showHelp(false);

@@ -1,5 +1,5 @@
 import * as T from '../../g1-m2/r2-vertical-v03-visual/vendor/three.module.min.js';
-import { atPoint, HALF, center, xOf, zOf } from './world.mjs';
+import { atPoint, HALF, SIZE, center, xOf, zOf } from './world.mjs';
 import { buildArchitecture, createArchitectureMaterials } from './architecture.mjs';
 import { makeLandscape } from './landscape.mjs';
 import { plotSignature } from './spatial.mjs';
@@ -79,7 +79,8 @@ export function createView(canvas, onFrame) {
   let shadowX = Infinity, shadowZ = Infinity, shadowSpan = Infinity;
   let lastFrame = 0;
 
-  const chunkId = id => Math.floor(xOf(id) / SNAP) + 6 * Math.floor(zOf(id) / SNAP);
+  const chunkColumns = Math.ceil(SIZE / SNAP);
+  const chunkId = id => Math.floor(xOf(id) / SNAP) + chunkColumns * Math.floor(zOf(id) / SNAP);
   function rebuild(id) {
     if (chunks.has(id)) {
       free(chunks.get(id));
@@ -212,7 +213,7 @@ export function createView(canvas, onFrame) {
     if (!draw) draw = requestAnimationFrame(frame);
   }
 
-  function locate(clientX, clientY, mode) {
+  function locate(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     ndc.set((clientX - rect.left) / width * 2 - 1, -((clientY - rect.top) / height) * 2 + 1);
     ray.setFromCamera(ndc, camera);
@@ -225,11 +226,11 @@ export function createView(canvas, onFrame) {
     const facade = hits[0];
     if (facade) {
       const id = facade.object.userData.plotIds[facade.faceIndex];
-      return { id, occupied: true };
+      return { id, occupied: true, building: true };
     }
-    if (!ray.ray.intersectPlane(plane, hit)) return { id: -1, occupied: false };
+    if (!ray.ray.intersectPlane(plane, hit)) return { id: -1, occupied: false, building: false };
     const id = atPoint(hit.x, hit.z);
-    return { id, occupied: latest?.plots[id]?.kind === 'room' };
+    return { id, occupied: latest?.plots[id]?.kind === 'room', building: false };
   }
 
   function mark(plot, mode) {

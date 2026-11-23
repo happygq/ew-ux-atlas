@@ -9,6 +9,7 @@ const routes = new Map([
 ]);
 const vendorPath = '/g1-m2/r2-vertical-v03-visual/vendor/three.module.min.js';
 const port = Number(process.argv[2] ?? 8080);
+const host = process.argv[3] ?? '127.0.0.1';
 
 const server = createServer(async (request, response) => {
   const path = new URL(request.url, 'http://127.0.0.1').pathname;
@@ -30,4 +31,7 @@ const server = createServer(async (request, response) => {
     response.writeHead(404).end('Not found');
   }
 });
-server.listen(port, '127.0.0.1', () => console.log(`http://127.0.0.1:${server.address().port}/play/01/`));
+server.listen(port, host, () => {
+  const { address, family, port } = server.address();
+  console.log(`http://${family === 'IPv6' ? `[${address}]` : address}:${port}/play/01/`);
+});

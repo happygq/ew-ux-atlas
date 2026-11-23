@@ -1,32 +1,36 @@
-# Huizhou · Courtyard Builder
+# Huizhou · 徽州院落建造
 
-**EW-PLAY-01 v2.1 / P2 IMPLEMENTED — PLAYABILITY NOT YET ACCEPTED**
+**EW-PLAY-01 v2.1 修订 · P2 IMPLEMENTED — PLAYABILITY NOT YET ACCEPTED**
 
-## Open the build
+## 试玩
 
-From the repository root, run `node play/01/serve.mjs` with Node 22 or later and open [the local valley](http://127.0.0.1:8080/play/01/). To make a self-contained offline copy, run `node play/01/pack-preview.mjs Huizhou-Courtyard-Builder.html` and open the resulting file in a modern WebGL 2 browser. The current GitHub Pages source is `main`.
+从仓库根目录运行 `node play/01/serve.mjs`，在支持 WebGL 2 的浏览器打开 [本地预览](http://127.0.0.1:8080/play/01/)。离线文件可用 `node play/01/pack-preview.mjs Huizhou-Courtyard-Builder.html` 生成。GitHub Pages 目前从 `main` 发布。
 
-## Play
+同一 Wi-Fi 的手机试玩可用 `node play/01/serve.mjs 8781 <电脑的局域网 IPv4>`，然后在 Safari 打开命令输出的地址。
 
-Click or tap open ground with **Add**, then build a row and extend both ends into wings around an empty space. Close the fourth side and rotate to look for the covered entrance. Choose **Remove** or **Recolor** and select a building, or use **Undo** to reverse the last change. Drag to orbit, right-drag to pan, and scroll to zoom on desktop, or drag with two fingers and pinch on touchscreens. Use the valley map to jump to a distant site and the overview button to see the whole landscape.
+点空格建造，长按屋顶删除，Undo 撤销。色板决定下一格所属的房屋风格，同色相邻扩建，异色接壤分户。单指拖动转视角，双指拖动或捏合平移、缩放。用小地图跳到别处继续建造。
 
-## Coverage
+## 从实测到建造语言
 
-- **R1** — A 120 m × 120 m buildable plane has 900 selectable 4 m × 4 m plots and 14,400 m² of net building land.
-- **R2** — A room has about 14 m² of clear floor area and a 3.1 m eave clearance. Shared partitions, physical openings, roof junctions, open and enclosed courts, and 1.68 m passage apertures resolve from occupancy. Paved approaches are about 2.66 m wide.
-- **R3** — Plaster, timber reveals, stone paving, stepped horse-head gables and textured tiles are generated with coordinated finishes and directional shadowing.
-- **R4** — Add, Remove, Recolor and Undo use the same edit entry point as deterministic replays. Hover feedback, construction animation, orbit, pan and touch zoom are available on the playable surface.
-- **R5** — The world opens empty, with independently editable plots and compounds. Roof ridges and wall openings adapt at every position. The court and passage rules apply to player-created layouts.
+合工大对完整测绘样本的归纳把厅堂、卧室、天井和走道作为有不同尺度的单元。其堂屋常见面宽约 4–5 m、进深约 3–5.5 m，次间面宽约 2–3.5 m，走道多为 0.7–1.5 m。黟县的 255 例天井调查显示，开口长度集中于 3.5–5.5 m，宽度集中于 2–3.1 m，也有近方形样本。下列尺寸是游戏转译，保留不同地块上的布局变化。 [合工大实测与参数化研究](https://xbzzs.hfut.edu.cn/uploads/journal/xbzk/2023/2/1003-5060-2023-2-8.pdf) · [黟县天井实测](https://www.mdpi.com/2075-5309/15/15/2713)
 
-## Reproduce the checks
+- **明厅与次间。** 用 5 m 点击地块建立开间顺序。三开间的中间识别为明厅，两侧可形成次间。天井坐落后，以院口对岸为主厅，厅面以木柱、梁枋和开敞门面朝向天井。次间从厅或廊进入，向巷的外围护以封闭抹灰砖墙和小高窗为主。 [ICOMOS 西递宏村现场评估](https://whc.unesco.org/document/151501) · [西递宏村室内实测](https://journal.khousing.or.kr/articles/xml/ma4R/)
+- **天井与廊屋。** 同户实墙围合的空地可成为天井。短廊和屋檐挑向内侧，留下见天的窄开口。石地收水沟和排水口对应向院落水的位置。围合外有缺口时，可形成开口的院落。 [东南大学徽州天井院空间研究](https://sjzj.cbpt.cnki.net/portal/journal/portal/client/paper/7655eb2746d606ebf79206bf59b5b2ec) · [中国非遗数字博物馆营造技艺](https://www.ihchina.cn/art/detail/id/10671.html)
+- **门屋与多进。** 封闭天井由一条落在真实门洞中的路径通向巷道。相邻两井若在同户且隔一个厅的厚度，可由两面开敞的厅连接，后井经前一进出入。入口在可用巷面上选择，侧入也允许。 [黄山市志办《徽州宅居》](https://www.huangshan.gov.cn/zjhs/rwhz/fsmq/8294878.html)
+- **台基、木架、砖围护与屋面。** 青石台基衔接室内地面，木柱、梁枋、檩椽承接瓦顶的视觉关系，临外砖围护与临井木隔扇对应不同界面。屋面按主厅、次间、门屋和廊屋的跨度生成双坡与檐口。同方向、同截面屋架才续脊，转向和高低接缝以山墙处理。马头墙从屋身上升并越过瓦面。 [ICOMOS 西递宏村现场评估](https://whc.unesco.org/document/151501) · [徽州民居材料与围护实测](https://www.mdpi.com/2075-5309/13/3/583)
+- **分户与巷。** 同色边接是户内关系，有条件地连接隔墙和屋架。异色接壤时两侧各退 0.76 m，生成各自的外墙和约 1.52 m 的地面巷道。独立宅体分别由公共空地、巷道或有实际门洞的院落路径到达。
+
+场地是连续的 120 × 120 m，净建造面积 14,400 m²。每次点击修改占地，空间规则随占地重算，渲染只更新受影响的片区。宅院可在全场自由放置，也可以在同一家内纵向发展。
+
+## 验证
 
 ```sh
 node --test play/01/settlement.test.mjs
 node play/01/browser.test.mjs
 ```
 
-The first command checks area, occupancy and undo, open and enclosed courts, multiple compounds, roof seams, accessibility, mesh openings and deterministic replays. The browser check uses Chrome DevTools for desktop input and touch emulation and optionally takes an output directory for screenshots. Set `EW_CHROME` if Chromium is installed outside the usual paths. Both checks reuse the repository's pinned Three.js build.
+Node 测试覆盖建造面积、撤销、院落轴线、多进连通、分户和实际几何开口。浏览器脚本使用 Chromium 输入触摸和鼠标事件，支持可选截图目录及离线 HTML 路径。可通过 `EW_CHROME` 指定 Chromium 或 Edge。
 
-## P2 limits
+## 本版范围
 
-Construction is single-story and uses a fixed 4 m grid. Sessions start fresh on reload. Broad roof masses use simplified ridge and valley geometry. The courtyard heuristic recognizes a three-sided court when the flanking and rear buildings are in the same group and close enough to read as a court. Enclosed courts use a shortest available route, so placing new surrounding buildings can move the gateway. Touch validation uses browser emulation. Owner evaluation of appearance and playability is pending.
+生成器使用单层空间、5 m 网格和简化的木构细部。异色建筑从四边围拢时，中央独户退让出的开间更紧凑。天井、小高窗和门洞有三维几何，排水以屋面朝向和构件呈现。选色会影响本次及以后的建造，刷新会清空当前会话。历史徽州民居常见楼居，也包含更多地域做法、室内家具和装饰层次，本版主要覆盖可组合的单进与轴向多进住居。

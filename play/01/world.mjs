@@ -1,5 +1,5 @@
-export const SIZE = 30;
-export const BAY = 4;
+export const SIZE = 24;
+export const BAY = 5;
 export const HALF = SIZE * BAY / 2;
 export const AREA = SIZE ** 2 * BAY ** 2;
 export const COUNT = SIZE ** 2;
@@ -46,23 +46,18 @@ export function createWorld() {
     const id = cell(x, z);
     if (id < 0) return { ok: false, reason: 'Choose a plot inside the valley' };
     const before = rooms.get(id);
+    if (type !== 'add' && type !== 'remove') return { ok: false, reason: 'Unknown tool' };
     if (type === 'add' && before) return { ok: false, reason: 'This plot is already built' };
-    if ((type === 'remove' || type === 'recolor') && !before) {
+    if (type === 'remove' && !before) {
       return { ok: false, reason: 'Choose an existing building' };
     }
-    if (type !== 'remove' && (!Number.isInteger(palette) || !PALETTES[palette])) {
+    if (type === 'add' && (!Number.isInteger(palette) || !PALETTES[palette])) {
       return { ok: false, reason: 'Choose an available palette' };
     }
-    if (type === 'recolor' && before.palette === palette) {
-      return { ok: false, reason: 'This building already uses that palette' };
-    }
-    if (!['add', 'remove', 'recolor'].includes(type)) return { ok: false, reason: 'Unknown tool' };
 
     history.push({ id, before, serial });
     if (type === 'remove') rooms.delete(id);
-    else rooms.set(id, Object.freeze(type === 'add'
-      ? { id, identity: ++serial, palette }
-      : { ...before, palette }));
+    else rooms.set(id, Object.freeze({ id, identity: ++serial, palette }));
     revision++;
     return { ok: true, id, type };
   }
